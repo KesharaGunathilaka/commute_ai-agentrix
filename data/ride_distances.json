@@ -1,0 +1,53 @@
+[
+  {
+    "_comment": "Galle city center (bus stand / railway station) -> Karapitiya Teaching Hospital. Real-world distance ~3km. Includes the exact stop name Google Maps Directions returns for this corridor (verified 2026-07), plus common English spellings.",
+    "from_aliases": [
+      "galle bus stand",
+      "galle central bus stand",
+      "galle bus terminal",
+      "ගාල්ල මධ්‍යම බස් නැවතුම් පොල",
+      "galle railway station",
+      "galle fort railway station",
+      "galle station"
+    ],
+    "to_aliases": [
+      "karapitiya",
+      "karapitiya hospital",
+      "karapitiya teaching hospital",
+      "teaching hospital karapitiya",
+      "karapitiya bus stand"
+    ],
+    "distance_km": 3.0,
+    "typical_duration_min": 10
+  },
+  {
+    "_comment": "Colombo Fort area -> Colombo National Hospital. Short intra-city hop, ~1.2km.",
+    "from_aliases": [
+      "colombo fort",
+      "fort railway station",
+      "bastian mawatha bus stand",
+      "pettah"
+    ],
+    "to_aliases": [
+      "national hospital",
+      "national hospital colombo",
+      "colombo general hospital"
+    ],
+    "distance_km": 1.2,
+    "typical_duration_min": 6
+  },
+  {
+    "_comment": "Kandy city center -> Kandy General (Teaching) Hospital, ~1.5km.",
+    "from_aliases": [
+      "kandy railway station",
+      "kandy goods shead bus stand",
+      "kandy clock tower"
+    ],
+    "to_aliases": [
+      "kandy general hospital",
+      "kandy teaching hospital"
+    ],
+    "distance_km": 1.5,
+    "typical_duration_min": 7
+  }
+]

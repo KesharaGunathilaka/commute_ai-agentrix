@@ -1,0 +1,119 @@
+[
+  {
+    "route_id": "1015",
+    "line": "Colombo–Kandy",
+    "stops": [
+      "Colombo Fort",
+      "Maradana",
+      "Kelaniya",
+      "Veyangoda",
+      "Polgahawela",
+      "Peradeniya Junction",
+      "Kandy"
+    ],
+    "departure_times": ["06:30", "06:36", "06:52", "07:25", "08:10", "10:30", "10:45"],
+    "arrival_times":   ["06:30", "06:36", "06:52", "07:25", "08:10", "10:30", "10:45"],
+    "days_of_operation": ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
+    "transit_mode": "train",
+    "vehicle_type": "InterCity Express",
+    "description": "Train 1015 (InterCity Express) departs Colombo Fort at 06:30, arrives Kandy at 10:45."
+  },
+  {
+    "route_id": "1019",
+    "line": "Colombo–Kandy",
+    "stops": [
+      "Colombo Fort",
+      "Maradana",
+      "Kelaniya",
+      "Veyangoda",
+      "Polgahawela",
+      "Peradeniya Junction",
+      "Kandy"
+    ],
+    "departure_times": ["08:00", "08:06", "08:22", "08:55", "09:40", "12:00", "12:15"],
+    "arrival_times":   ["08:00", "08:06", "08:22", "08:55", "09:40", "12:00", "12:15"],
+    "days_of_operation": ["Mon", "Tue", "Wed", "Thu", "Fri"],
+    "transit_mode": "train",
+    "vehicle_type": "Intercity",
+    "description": "Train 1019 (Intercity) departs Colombo Fort at 08:00, arrives Kandy at 12:15. Weekdays only."
+  },
+  {
+    "route_id": "1035",
+    "line": "Colombo–Kandy",
+    "stops": [
+      "Colombo Fort",
+      "Maradana",
+      "Kelaniya",
+      "Veyangoda",
+      "Polgahawela",
+      "Peradeniya Junction",
+      "Kandy"
+    ],
+    "departure_times": ["14:05", "14:11", "14:27", "15:00", "15:45", "18:05", "18:20"],
+    "arrival_times":   ["14:05", "14:11", "14:27", "15:00", "15:45", "18:05", "18:20"],
+    "days_of_operation": ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
+    "transit_mode": "train",
+    "vehicle_type": "Intercity",
+    "description": "Train 1035 (Intercity) departs Colombo Fort at 14:05, arrives Kandy at 18:20. Daily service."
+  },
+  {
+    "route_id": "8731",
+    "line": "Colombo–Galle",
+    "stops": [
+      "Colombo Fort",
+      "Maradana",
+      "Mount Lavinia",
+      "Moratuwa",
+      "Panadura",
+      "Kalutara South",
+      "Hikkaduwa",
+      "Galle"
+    ],
+    "departure_times": ["07:15", "07:21", "07:38", "07:52", "08:15", "08:55", "09:50", "10:30"],
+    "arrival_times":   ["07:15", "07:21", "07:38", "07:52", "08:15", "08:55", "09:50", "10:30"],
+    "days_of_operation": ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
+    "transit_mode": "train",
+    "vehicle_type": "Intercity",
+    "description": "Train 8731 (Intercity) departs Colombo Fort at 07:15, arrives Galle at 10:30. Daily service."
+  },
+  {
+    "route_id": "8745",
+    "line": "Colombo–Galle",
+    "stops": [
+      "Colombo Fort",
+      "Maradana",
+      "Mount Lavinia",
+      "Moratuwa",
+      "Panadura",
+      "Kalutara South",
+      "Hikkaduwa",
+      "Galle"
+    ],
+    "departure_times": ["10:30", "10:36", "10:53", "11:07", "11:30", "12:10", "13:05", "13:45"],
+    "arrival_times":   ["10:30", "10:36", "10:53", "11:07", "11:30", "12:10", "13:05", "13:45"],
+    "days_of_operation": ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
+    "transit_mode": "train",
+    "vehicle_type": "Intercity",
+    "description": "Train 8745 (Intercity) departs Colombo Fort at 10:30, arrives Galle at 13:45. Daily service."
+  },
+  {
+    "route_id": "8761",
+    "line": "Colombo–Galle",
+    "stops": [
+      "Colombo Fort",
+      "Maradana",
+      "Mount Lavinia",
+      "Moratuwa",
+      "Panadura",
+      "Kalutara South",
+      "Hikkaduwa",
+      "Galle"
+    ],
+    "departure_times": ["15:45", "15:51", "16:08", "16:22", "16:45", "17:25", "18:20", "19:00"],
+    "arrival_times":   ["15:45", "15:51", "16:08", "16:22", "16:45", "17:25", "18:20", "19:00"],
+    "days_of_operation": ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
+    "transit_mode": "train",
+    "vehicle_type": "Intercity",
+    "description": "Train 8761 (Intercity) departs Colombo Fort at 15:45, arrives Galle at 19:00. Daily service."
+  }
+]

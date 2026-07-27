@@ -1,0 +1,50 @@
+{
+  "_README": [
+    "ESTIMATES — NOT OFFICIAL TARIFFS. Replace before relying on these.",
+    "",
+    "Bus fares in Sri Lanka are set by the National Transport Commission on a",
+    "stage-based system; rail fares are set by Sri Lanka Railways by distance",
+    "and class. Neither publishes a machine-readable feed, so this file models",
+    "them as a minimum fare covering an initial distance band plus a per-km",
+    "rate beyond it, with a multiplier per comfort class.",
+    "",
+    "The rates below are plausible placeholders chosen to produce realistic",
+    "magnitudes, NOT transcribed from a published tariff. Verify against the",
+    "current NTC and SLR schedules, then update the rates and set `verified`",
+    "to true. While it is false the UI shows a ±uncertainty margin on every",
+    "figure and flags them as unverified.",
+    "",
+    "To update: change the numbers here only. No code changes required."
+  ],
+
+  "currency": "LKR",
+  "verified": false,
+  "source": "unverified placeholder rates",
+  "last_reviewed": "2026-07-27",
+
+  "//": "± margin shown on every figure while verified is false. Ignored once verified.",
+  "unverified_range_pct": 0.25,
+
+  "bus": {
+    "//": "minimum_fare covers the first `minimum_covers_km`; per_km applies beyond.",
+    "minimum_fare": 30,
+    "minimum_covers_km": 5,
+    "per_km": 3.2,
+    "classes": [
+      { "id": "normal", "label": "Normal", "multiplier": 1.0 },
+      { "id": "semi_luxury", "label": "Semi-luxury", "multiplier": 1.5 },
+      { "id": "luxury", "label": "Luxury / AC", "multiplier": 2.2 }
+    ]
+  },
+
+  "train": {
+    "minimum_fare": 20,
+    "minimum_covers_km": 5,
+    "per_km": 1.3,
+    "classes": [
+      { "id": "third", "label": "3rd class", "multiplier": 1.0 },
+      { "id": "second", "label": "2nd class", "multiplier": 1.85 },
+      { "id": "first", "label": "1st class", "multiplier": 3.4 }
+    ]
+  }
+}

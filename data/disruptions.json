@@ -1,0 +1,47 @@
+[
+  {
+    "disruption_id": "D001",
+    "train_id": "GMAPS-0",
+    "affected_segment": "Fort Railway station - Kandy",
+    "type": "delay",
+    "delay_minutes": 45,
+    "active": false,
+    "message": "The Fort/Badulla train service from Fort Railway station to Kandy is delayed by 45 minutes due to a track maintenance issue near Veyangoda."
+  },
+  {
+    "disruption_id": "D002",
+    "train_id": "GMAPS-5",
+    "affected_segment": "Fort Railway station - Galle Railway Station",
+    "type": "cancellation",
+    "delay_minutes": null,
+    "active": false,
+    "message": "The Fort/Matara train service from Fort Railway station to Galle Railway Station is cancelled today due to a locomotive fault. Passengers are advised to use available bus services."
+  },
+  {
+    "disruption_id": "D003",
+    "train_id": "GMAPS-1",
+    "affected_segment": "Fort Railway station - Kandy",
+    "type": "delay",
+    "delay_minutes": 30,
+    "active": false,
+    "message": "The Fort/Kandy train service is running 30 minutes late due to a signal failure between Polgahawela and Peradeniya Junction."
+  },
+  {
+    "disruption_id": "D004",
+    "train_id": "GMAPS-5",
+    "affected_segment": "Fort Railway station - Galle Railway Station",
+    "type": "delay",
+    "delay_minutes": 60,
+    "active": false,
+    "message": "The Fort/Matara train service is severely delayed by 60 minutes due to flooding on the Southern Line near Kalutara."
+  },
+  {
+    "disruption_id": "D005",
+    "train_id": "GMAPS-1",
+    "affected_segment": "Fort Railway station - Kandy",
+    "type": "cancellation",
+    "delay_minutes": null,
+    "active": false,
+    "message": "The Fort/Kandy train service is CANCELLED due to a derailment incident at Kelaniya. No alternative direct train service available until further notice."
+  }
+]

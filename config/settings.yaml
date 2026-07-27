@@ -1,0 +1,38 @@
+# Static application settings — values here can be overridden by .env
+# Loaded by src/commute_agent/core/config.py
+
+retrieval:
+  top_k: 5                      # number of routes returned per semantic query
+  similarity_threshold: 0.60    # minimum cosine similarity to include a result
+
+cache:
+  enabled: true
+  ttl_seconds: 300              # 5-minute TTL for route + disruption results
+
+graph:
+  max_replan_attempts: 2        # hard cap — graph will not loop beyond this
+
+supported_lines:
+  - name: "Colombo–Kandy"
+    stations:
+      - "Colombo Fort"
+      - "Maradana"
+      - "Kelaniya"
+      - "Veyangoda"
+      - "Polgahawela"
+      - "Peradeniya Junction"
+      - "Kandy"
+  - name: "Colombo–Galle"
+    stations:
+      - "Colombo Fort"
+      - "Maradana"
+      - "Mount Lavinia"
+      - "Moratuwa"
+      - "Panadura"
+      - "Kalutara South"
+      - "Hikkaduwa"
+      - "Galle"
+
+languages:
+  supported: ["si", "ta", "en"]
+  default: "en"

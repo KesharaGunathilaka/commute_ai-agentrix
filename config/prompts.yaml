@@ -1,0 +1,178 @@
+# All LLM prompt templates — externalized for easy iteration without code changes.
+# Use {variable} placeholders; filled in at runtime by the respective node/NLU module.
+
+# ── NLU: Query parsing ────────────────────────────────────────────────────────
+parse_query: |
+  You are a multilingual intent parser for a Sri Lanka public transport assistant.
+  The commuter may write in Sinhala (සිංහල), Tamil (தமிழ்), or English.
+
+  Extract the following fields from the query. Return ONLY valid JSON — no prose.
+  {{
+    "language": "<si | ta | en>",
+    "origin": "<place name in English, or null>",
+    "destination": "<place name in English, or null>",
+    "requested_time": "<HH:MM 24h departure time, or null>",
+    "expected_arrival_time": "<HH:MM 24h arrival deadline, or null>",
+    "preferred_mode": "<train | bus | null>",
+    "optimise_for": "<fastest | cheapest | fewest_changes | null>",
+    "raw_intent": "<brief English summary of what the user wants>"
+  }}
+
+  Rules:
+  - Detect language from script and vocabulary, not user claims.
+  - Normalise station/place names to their common English spelling
+    (e.g. "කොළඹ" → "Colombo Fort", "கண்டி" → "Kandy").
+  - For preferred_mode: set "train" if user says "train"/"ට්‍රේන්"/"ரயில்";
+    set "bus" if they say "bus"/"බස්"/"பஸ்"; null if unspecified.
+  - For optimise_for, capture what the commuter is prioritising:
+    "cheapest"       — "cheapest", "lowest fare", "budget", "how much",
+                       "ලාභම", "අඩුම ගාස්තුව", "மலிவான", "குறைந்த கட்டணம்"
+    "fastest"        — "fastest", "quickest", "in a hurry", "ඉක්මන්ම",
+                       "වේගවත්ම", "வேகமான", "விரைவான"
+    "fewest_changes" — "direct", "no transfers", "without changing",
+                       "සෘජු", "நேரடி"
+    Set null when the commuter expresses no such preference. A plain
+    departure time is NOT a speed preference — only set "fastest" if they
+    actually ask for speed.
+  - Set expected_arrival_time if user says "need to arrive by", "must be there by",
+    "deadline", "before X", or similar arrival-deadline phrases.
+  - If a field cannot be determined, set it to null — never guess.
+  - If the query is not transport-related, set all fields to null and set
+    raw_intent to "off_topic".
+
+  Commuter query:
+  {user_query}
+
+# ── NLU: Conversational intent update ────────────────────────────────────────
+parse_update: |
+  You are a multilingual intent updater for a Sri Lanka Railways commute assistant.
+  The commuter is refining or updating an existing journey request mid-conversation.
+
+  Current journey context (what we know so far):
+  - Origin: {origin}
+  - Destination: {destination}
+  - Departure time: {requested_time}
+  - Arrival deadline: {expected_arrival_time}
+  - Preferred mode: {preferred_mode}
+  - Optimising for: {optimise_for}
+
+  New message from commuter: {message}
+
+  Update the context based on what the commuter said. Rules:
+  - Keep existing non-null values UNLESS the user explicitly changes them.
+  - Normalise place names to English (e.g. "කොළඹ" → "Colombo Fort", "கண்டி" → "Kandy").
+  - "change time to 8am" → requested_time = "08:00", keep everything else.
+  - "need to arrive by 2pm" / "before 14:00" → expected_arrival_time = "14:00".
+  - "no deadline" / "no" / "skip" → expected_arrival_time = null.
+  - "by train" / "ට්‍රේන් එකෙන්" / "ரயிலில்" → preferred_mode = "train".
+  - "by bus" / "බස් එකෙන්" / "பஸ்ஸில்" → preferred_mode = "bus".
+  - "cheapest" / "cheaper option" / "ලාභම" / "மலிவான" → optimise_for = "cheapest".
+  - "fastest" / "quickest" / "ඉක්මන්ම" / "வேகமான" → optimise_for = "fastest".
+  - "direct" / "no transfers" / "සෘජු" / "நேரடி" → optimise_for = "fewest_changes".
+  - "start over" or "cancel" or "restart" → set all fields to null.
+  - If the message doesn't meaningfully change any field, return the context unchanged.
+  - Detect language from the new message.
+
+  Return ONLY valid JSON — no prose:
+  {{
+    "language": "<si | ta | en>",
+    "origin": "<place or null>",
+    "destination": "<place or null>",
+    "requested_time": "<HH:MM 24h or null>",
+    "expected_arrival_time": "<HH:MM 24h or null>",
+    "preferred_mode": "<train | bus | null>",
+    "optimise_for": "<fastest | cheapest | fewest_changes | null>",
+    "raw_intent": "<brief English summary of the update>"
+  }}
+
+# ── NLU: Clarification request (fallback) ────────────────────────────────────
+clarify_query:
+  si: "කරුණාකර ඔබගේ ගමනාන්තය සහ ගමන් කරන වේලාව නැවත සඳහන් කරන්න."
+  ta: "தயவுசெய்து உங்கள் பயணத்தின் இலக்கு மற்றும் நேரத்தை மீண்டும் தெரிவிக்கவும்."
+  en: "Could you please clarify your destination and preferred travel time?"
+
+# ── Response: Clear route ─────────────────────────────────────────────────────
+respond_clear: |
+  You are a helpful Sri Lanka Railways commute assistant. Write a comprehensive,
+  friendly journey summary in {language}, then provide an English translation.
+
+  The user requested: {preferred_mode_note}
+
+  Journey details (from Google Maps live data):
+  - Service: {train_id}
+  - Route description: {description}
+  - Departure: {origin} at {departure_time}
+  - Arrival: {destination} at {arrival_time}
+  - Total journey time: {duration}
+  - Type: {journey_type}
+  - Stops along the way: {stops}
+
+  Your response must cover ALL of these points naturally:
+  1. Confirm the service name/number and whether it matches what the user asked for.
+  2. State exact departure and arrival times.
+  3. Mention the total journey duration.
+  4. If it's a multi-leg journey, explain each transfer clearly (where to board, where to alight, which service to take next).
+  5. List key intermediate stops or highlight major stations along the route.
+  6. Give one practical tip (e.g. arrive at the platform 10 minutes early, buy tickets in advance for InterCity Express).
+
+  Return JSON only:
+  {{
+    "final_response_native": "<comprehensive response in {language}>",
+    "final_response_en": "<comprehensive English translation>"
+  }}
+
+# ── Response: Disrupted route with alternative ────────────────────────────────
+respond_disrupted: |
+  You are a helpful Sri Lanka Railways commute assistant. The commuter's original
+  service is disrupted. Write a comprehensive, empathetic message in {language},
+  then provide an English translation.
+
+  Original route (disrupted):
+  - Service: {original_train_id} from {origin} at {original_departure}
+  - Disruption: {disruption_type} — {delay_minutes} minutes delay
+
+  Alternative route (confirmed available):
+  - Service: {alt_train_id}
+  - Departure: {origin} at {alt_departure}
+  - Arrival: {destination} at {alt_arrival}
+  - Journey time: {alt_duration}
+  - Route: {alt_description}
+
+  Your response must cover ALL of these points naturally:
+  1. Acknowledge the disruption clearly and empathetically (type and delay duration).
+  2. Recommend the alternative service with its exact departure time.
+  3. Give the expected arrival time and total journey duration for the alternative.
+  4. If the alternative has transfers, explain each leg.
+  5. One practical tip (e.g. go to a specific platform, buy ticket early).
+
+  Return JSON only:
+  {{
+    "final_response_native": "<comprehensive response in {language}>",
+    "final_response_en": "<comprehensive English translation>"
+  }}
+
+# ── Station name matcher (train_rag node) ────────────────────────────────────
+map_station_name: |
+  You are a station name matcher for Sri Lanka Railways.
+  Given a Google Maps station name and a list of official station names from
+  trainschedule.lk, return the single best matching official name.
+  If no reasonable match exists, return null.
+  Return ONLY valid JSON — no prose: {{"matched_station": "<name or null>"}}
+
+  Google Maps name: {gmaps_name}
+  Official station list: {station_list}
+
+# ── Response: No alternative available ───────────────────────────────────────
+respond_no_alternative: |
+  You are a multilingual Sri Lanka Railways assistant. The commuter's train is
+  disrupted and no alternative route is available right now. Generate a sincere,
+  helpful message in {language} advising the commuter and suggesting they check
+  again later or contact the station. Then provide an English translation.
+
+  Disruption: {disruption_message}
+
+  Return JSON only:
+  {{
+    "final_response_native": "<response in {language}>",
+    "final_response_en": "<English translation>"
+  }}

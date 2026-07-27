@@ -1,0 +1,218 @@
+/**
+ * Wire types — the mirror of `commute_agent/api/schemas.py`.
+ *
+ * Fields that the backend types as `dict[str, Any]` (routes, disruptions,
+ * ride quotes) are modelled here as concretely as the Python side actually
+ * populates them. Everything optional is genuinely optional: a route sourced
+ * from the curated timetable JSON has no polyline, a journey with no delay
+ * has no disruption record, and so on.
+ */
+
+export type Language = "en" | "si" | "ta";
+
+export type TurnKind =
+  | "clarify"
+  | "plan"
+  | "unchanged"
+  | "restart"
+  | "off_topic"
+  | "parse_error"
+  | "error";
+
+export type ClarificationField = "both" | "origin" | "destination" | "time" | "arrival";
+
+export type DisruptionLevel = "clear" | "delayed" | "cancelled";
+
+export type TransitMode = "train" | "bus";
+
+export interface StopCoord {
+  name: string;
+  /** Absent when Google returned a stop with no location. */
+  lat?: number;
+  lng?: number;
+}
+
+export interface RouteLeg {
+  mode: TransitMode;
+  line: string;
+  /** Public route number, e.g. "138". Empty for most rail lines. */
+  route_ref?: string;
+  board_stop: string;
+  alight_stop: string;
+  departure: string;
+  arrival: string;
+  distance_m?: number;
+  /** Encoded polyline for this leg alone — used to highlight one segment. */
+  polyline?: string | null;
+  board_coord?: { lat: number; lng: number } | null;
+  alight_coord?: { lat: number; lng: number } | null;
+}
+
+export interface RouteBounds {
+  north: number;
+  south: number;
+  east: number;
+  west: number;
+}
+
+export type OptimiseFor = "fastest" | "cheapest" | "fewest_changes";
+
+export interface FareClass {
+  id: string;
+  label: string;
+  amount: number;
+}
+
+/**
+ * An estimated fare. Never a published tariff — `estimated` is always true.
+ *
+ * `classes` carries real price variation (3rd vs 1st class); `uncertainty_pct`
+ * carries how wrong the underlying rate table might be. They are separate
+ * fields on purpose and must not be merged into a single displayed range.
+ */
+export interface FareEstimate {
+  currency: string;
+  /** Cheapest class — the headline figure and the cost-ranking key. */
+  amount: number;
+  max_amount: number;
+  distance_km: number;
+  classes: FareClass[];
+  /** 0 once the rates are verified; otherwise the ± margin to display. */
+  uncertainty_pct: number;
+  mode: TransitMode;
+  estimated: true;
+  verified: boolean;
+  source?: string;
+}
+
+export interface Route {
+  route_id: string;
+  line: string;
+  stops: string[];
+  /** HH:MM per stop, index-aligned with `stops`. */
+  departure_times: string[];
+  arrival_times: string[];
+  days_of_operation: string[];
+  transit_mode: TransitMode;
+  vehicle_type?: string;
+  description?: string;
+  /** Walking metres from the last transit stop to the real destination. */
+  last_mile_distance_m?: number | null;
+  legs?: RouteLeg[];
+  /** Encoded overview polyline. Null for non-Google-Maps routes. */
+  polyline?: string | null;
+  stop_coords?: StopCoord[];
+  bounds?: RouteBounds | null;
+  /** Null when no defensible estimate exists — treat as unknown, never free. */
+  fare_estimate?: FareEstimate | null;
+}
+
+export interface DisruptionRecord {
+  disruption_id: string;
+  train_id: string;
+  affected_segment: string;
+  type: string;
+  delay_minutes?: number | null;
+  active: boolean;
+  message: string;
+}
+
+export interface DisruptionStatus {
+  level: DisruptionLevel;
+  disruption?: DisruptionRecord | null;
+}
+
+export interface RideQuote {
+  vehicle_type: string;
+  price?: number | string;
+  eta_min?: number;
+  available: boolean;
+  currency?: string;
+}
+
+export interface AgentState {
+  user_query: string;
+  language: Language;
+  origin?: string | null;
+  destination?: string | null;
+  requested_time?: string | null;
+  expected_arrival_time?: string | null;
+  preferred_mode?: string | null;
+  /** What the ranker actually optimised for; null means balanced. */
+  optimise_for?: OptimiseFor | null;
+
+  candidate_route?: Route | null;
+  candidate_routes: Route[];
+  ranked_routes: Route[];
+  alternative_route?: Route | null;
+
+  disruption_status?: DisruptionStatus | null;
+  original_disruption?: DisruptionStatus | null;
+  replan_attempts: number;
+
+  uber_options?: RideQuote[] | null;
+  uber_last_mile?: RideQuote[] | null;
+  uber_last_mile_distance_m?: number | null;
+  last_mile_transit_leg?: RouteLeg | null;
+
+  final_response_native: string;
+  final_response_en: string;
+
+  trace: string[];
+  error?: string | null;
+}
+
+export interface JourneySummary {
+  origin?: string | null;
+  destination?: string | null;
+  requested_time?: string | null;
+  expected_arrival_time?: string | null;
+  preferred_mode?: string | null;
+  optimise_for?: OptimiseFor | null;
+  language: Language;
+}
+
+export interface ChatResponse {
+  session_id: string;
+  kind: TurnKind;
+  message: string;
+  /** English gloss; equals `message` in English conversations. Used for TTS. */
+  message_en: string;
+  clarification?: ClarificationField | null;
+  journey: JourneySummary;
+  state?: AgentState | null;
+  detail?: string;
+}
+
+export interface BackendConfig {
+  maps_browser_key: string;
+  maps_enabled: boolean;
+  max_replan_attempts: number;
+  supported_languages: Language[];
+}
+
+/** One `node` SSE frame — a graph node finishing mid-run. */
+export interface NodeEvent {
+  node: string;
+  trace: string[];
+  disruption_level?: DisruptionLevel | null;
+  replan_attempts: number;
+}
+
+/** A chat message as the UI holds it (not a wire type). */
+export interface ChatMessage {
+  id: string;
+  role: "user" | "assistant";
+  text: string;
+  /** English gloss, for read-aloud and the translation disclosure. */
+  textEn?: string;
+  language?: Language;
+  kind?: TurnKind;
+  /** Which field a `clarify` turn asked about — drives the composer's hints. */
+  clarification?: ClarificationField | null;
+  /** Full agent state for assistant turns that produced a plan. */
+  state?: AgentState | null;
+  /** Trace captured live during streaming, kept for replay after the run. */
+  trace?: string[];
+  error?: boolean;
+}

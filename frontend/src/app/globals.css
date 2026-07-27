@@ -1,0 +1,329 @@
+@import "tailwindcss";
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   CommuteAI — light transit console
+
+   Still a departure board, lit from the front rather than the back: white
+   panels on a soft slate ground, deep cyan for live/active state, burnt amber
+   for fares and scheduled times, crimson for disruption. Timing data stays
+   monospaced so digits line up in columns the way they do on a real board.
+
+   Light by default and on purpose. This is a public-transport tool used by
+   every age group, often outdoors in bright daylight on a cheap phone — a
+   light ground is legible in sun, and the ink ramp below clears WCAG AA at
+   every step rather than only at the top.
+
+   ── Reading the token scale ──────────────────────────────────────────────
+   The numbers are NOT lightness. They encode DISTANCE FROM THE PAGE GROUND,
+   which is what each token is used for:
+
+     console-950  the page itself          console-700  borders
+     console-900  recessed surface         console-600  dividers, scrollbars
+     console-850  panel / card fill
+     console-800  hover and raised chips
+
+     ink-100  primary text   ink-500  muted labels
+     ink-300  secondary      ink-700  faintest supporting text
+
+   So console-850 is *lighter* than console-950 here, and ink-100 is the
+   darkest ink. Keeping the names stable meant the light conversion touched
+   this file instead of every component. Change a value here and it lands
+   everywhere; do not "fix" the ordering to match lightness.
+   ──────────────────────────────────────────────────────────────────────────── */
+
+@theme {
+  /* Surfaces — page ground outward to dividers */
+  --color-console-950: #eef2f7;
+  --color-console-900: #f8fafc;
+  --color-console-850: #ffffff;
+  --color-console-800: #f1f5f9;
+  --color-console-700: #e2e8f0;
+  --color-console-600: #cbd5e1;
+
+  /* Ink. Contrast is measured against console-950 (the page ground), not
+     white — the ground is the harder background, and checking against white
+     would let the faintest step pass on paper and fail on the actual page.
+     Ratios on the ground: 15.9 / 9.5 / 6.7 / 4.8 — every step clears AA,
+     including the 10px supporting text. */
+  --color-ink-100: #0f172a;
+  --color-ink-300: #334155;
+  --color-ink-500: #475569;
+  --color-ink-700: #5d6b7f;
+
+  /* Live / active — deep enough to read as text on white */
+  --color-signal-400: #0e7490;
+  --color-signal-500: #0891b2;
+  --color-signal-600: #155e75;
+
+  /* Fares, scheduled times, secondary emphasis */
+  --color-glow-400: #b45309;
+  --color-glow-600: #92400e;
+
+  /* Disruption */
+  --color-alert-400: #be123c;
+  --color-alert-500: #e11d48;
+  --color-alert-600: #9f1239;
+
+  /* Confirmed / on time. go-400 is deeper than the obvious green-700 because
+     it sits on a go-500/10 tint inside badges, which lifts the background and
+     costs roughly half a contrast point. */
+  --color-go-400: #166534;
+  --color-go-500: #16a34a;
+
+  --font-mono: var(--font-geist-mono), ui-monospace, SFMono-Regular, Menlo, monospace;
+  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+
+  --radius-console: 0.875rem;
+}
+
+:root {
+  color-scheme: light;
+}
+
+html,
+body {
+  background-color: var(--color-console-950);
+  color: var(--color-ink-100);
+}
+
+body {
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Two faint washes of colour behind everything, so large empty areas read as
+   tinted rather than flat grey. Kept very weak — on a light ground anything
+   stronger competes with the panels for attention and hurts text contrast.
+
+   A fixed pseudo-element rather than `background-attachment: fixed` on the
+   body: that property forces the browser to repaint the gradient on every
+   scroll frame, which is visibly janky on mobile and pathological during
+   headless capture. A fixed layer is composited once and simply stays put. */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background-image:
+    radial-gradient(
+      ellipse 80% 55% at 15% -10%,
+      color-mix(in oklab, var(--color-signal-500) 7%, transparent),
+      transparent
+    ),
+    radial-gradient(
+      ellipse 65% 50% at 92% 8%,
+      color-mix(in oklab, #6366f1 5%, transparent),
+      transparent
+    );
+}
+
+/* ── Utilities ─────────────────────────────────────────────────────────────── */
+
+/* Deliberately no backdrop-filter here. A journey renders a dozen panels at
+   once, and each blur layer is a separate compositing pass — enough to drop
+   frames while scrolling on the mid-range Android phones this is aimed at.
+   Blur is reserved for the sticky header, where content genuinely moves
+   underneath.
+
+   The shadow is doing real work, not decoration: a white card on a near-white
+   ground separates by about 6% luminance, which all but disappears in bright
+   daylight on a phone. The shadow is what keeps the card edge findable
+   outdoors. It replaces the dark theme's translucent fill, which relied on a
+   dark backdrop to define the same edge. */
+@utility panel {
+  background-color: var(--color-console-850);
+  border: 1px solid var(--color-console-700);
+  border-radius: var(--radius-console);
+  box-shadow:
+    0 1px 2px rgb(15 23 42 / 0.04),
+    0 2px 6px rgb(15 23 42 / 0.05);
+}
+
+/* Digits in a fixed-width grid — the departure-board effect. */
+@utility tabular {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+}
+
+/* Small uppercase label used above data groups. */
+@utility eyebrow {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-ink-500);
+}
+
+/* ── Scrollbars ────────────────────────────────────────────────────────────── */
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-console-600) transparent;
+}
+
+*::-webkit-scrollbar {
+  width: 9px;
+  height: 9px;
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+*::-webkit-scrollbar-thumb {
+  background: var(--color-console-600);
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background: var(--color-ink-700);
+  background-clip: content-box;
+}
+
+/* ── Motion ────────────────────────────────────────────────────────────────── */
+
+@keyframes pulse-ring {
+  0% {
+    box-shadow: 0 0 0 0 color-mix(in oklab, var(--color-signal-500) 55%, transparent);
+  }
+  70% {
+    box-shadow: 0 0 0 9px transparent;
+  }
+  100% {
+    box-shadow: 0 0 0 0 transparent;
+  }
+}
+
+@keyframes flip-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px) rotateX(-55deg);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) rotateX(0);
+  }
+}
+
+@keyframes sheen {
+  from {
+    background-position: -140% 0;
+  }
+  to {
+    background-position: 240% 0;
+  }
+}
+
+.animate-pulse-ring {
+  animation: pulse-ring 1.9s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+.animate-flip-in {
+  animation: flip-in 0.32s cubic-bezier(0.2, 0.9, 0.3, 1) both;
+  transform-origin: top center;
+}
+
+/* Shimmer for content that hasn't arrived yet. */
+.shimmer {
+  background-image: linear-gradient(
+    100deg,
+    transparent 20%,
+    color-mix(in oklab, var(--color-signal-500) 18%, transparent) 45%,
+    transparent 70%
+  );
+  background-size: 220% 100%;
+  animation: sheen 1.5s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-pulse-ring,
+  .animate-flip-in,
+  .shimmer {
+    animation: none;
+  }
+}
+
+/* ── Markdown inside chat bubbles ──────────────────────────────────────────── */
+/* The agent replies in markdown; these keep it from inheriting prose defaults
+   that would fight the bubble's own spacing. */
+
+.md > :first-child {
+  margin-top: 0;
+}
+
+.md > :last-child {
+  margin-bottom: 0;
+}
+
+.md p {
+  margin-block: 0.5rem;
+  line-height: 1.65;
+}
+
+.md strong {
+  color: var(--color-ink-100);
+  font-weight: 650;
+}
+
+.md ul,
+.md ol {
+  margin-block: 0.5rem;
+  padding-inline-start: 1.15rem;
+}
+
+.md ul {
+  list-style: disc;
+}
+
+.md ol {
+  list-style: decimal;
+}
+
+.md li {
+  margin-block: 0.2rem;
+}
+
+.md code {
+  font-family: var(--font-mono);
+  font-size: 0.85em;
+  background-color: color-mix(in oklab, var(--color-console-700) 55%, transparent);
+  padding: 0.1em 0.35em;
+  border-radius: 0.3rem;
+}
+
+.md a {
+  color: var(--color-signal-400);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+/* ── Google Maps overrides ─────────────────────────────────────────────────── */
+/* Aligns the SDK's info window with the app's panels — same radius, border,
+   and shadow weight. Restyled here rather than in a component because these
+   elements live inside the Maps SDK's own DOM, out of React's reach. */
+
+.gm-style .gm-style-iw-c {
+  background-color: var(--color-console-850) !important;
+  border: 1px solid var(--color-console-700) !important;
+  border-radius: 0.75rem !important;
+  box-shadow: 0 8px 26px rgb(15 23 42 / 0.16) !important;
+  padding: 0 !important;
+}
+
+.gm-style .gm-style-iw-tc::after {
+  background-color: var(--color-console-850) !important;
+}
+
+.gm-style .gm-style-iw-d {
+  overflow: hidden !important;
+  padding: 0 !important;
+}
+
+.gm-style .gm-style-iw-chr {
+  height: 0;
+  overflow: hidden;
+}
