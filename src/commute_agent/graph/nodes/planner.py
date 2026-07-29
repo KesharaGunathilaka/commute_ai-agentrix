@@ -40,6 +40,10 @@ def planner_node(state: AgentState) -> AgentState:
             requested_time=state.get("requested_time"),
             expected_arrival_time=state.get("expected_arrival_time"),
             preferred_mode=state.get("preferred_mode"),
+            # Carried through explicitly. state_update below writes
+            # intent.optimise_for back to state, so omitting it here would
+            # blank the value _state_from_intent already seeded.
+            optimise_for=state.get("optimise_for"),
         )
         logger.info("[%s] Pre-populated intent: %r → %r", NODE_NAME, intent.origin, intent.destination)
     else:
@@ -73,6 +77,10 @@ def planner_node(state: AgentState) -> AgentState:
         "requested_time": intent.requested_time,
         "expected_arrival_time": intent.expected_arrival_time,
         "preferred_mode": intent.preferred_mode,
+        # The NLU extracts this ("the cheapest way to Kandy") and the ranker
+        # reads it, but nothing used to carry it between them on the one-shot
+        # path — so POST /query silently ranked balanced whatever was asked for.
+        "optimise_for": intent.optimise_for,
         "replan_attempts": state.get("replan_attempts", 0),
     }
 

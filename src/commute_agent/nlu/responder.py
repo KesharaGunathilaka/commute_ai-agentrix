@@ -90,6 +90,62 @@ _CLARIFY = {
     Language.ENGLISH: "Could you please clarify your destination and preferred travel time?",
 }
 
+# Plain statement of an already-computed route, for when response generation is
+# unavailable. Every placeholder is filled from state, never from a model.
+_PLAIN_ROUTE = {
+    Language.SINHALA: (
+        "{origin} සිට {destination} දක්වා: {departure} ට පිටත් වී {arrival} ට ළඟා වේ "
+        "(ගමන් කාලය {duration})."
+    ),
+    Language.TAMIL: (
+        "{origin} இலிருந்து {destination} வரை: {departure} மணிக்குப் புறப்பட்டு "
+        "{arrival} மணிக்கு வந்தடையும் (பயண நேரம் {duration})."
+    ),
+    Language.ENGLISH: (
+        "{origin} to {destination}: departs {departure}, arrives {arrival} "
+        "(journey time {duration})."
+    ),
+}
+
+
+def _plain_route_response(state: dict, language: str) -> dict:
+    """Report the computed route without calling a model.
+
+    Used when response generation is unavailable — a Groq outage or, far more
+    likely during a demo, rate limiting. The planning work is already done and
+    correct at this point; losing the whole turn over the phrasing step throws
+    away a good answer for a cosmetic reason.
+
+    Every figure here is read from state. Nothing is inferred, and no model is
+    consulted, so this path cannot introduce a number the pipeline didn't
+    compute.
+    """
+    route = state.get("candidate_route") or {}
+    if not route:
+        return _clarification_response(language)
+
+    stops: list[str] = route.get("stops", [])
+    departure_times: list[str] = route.get("departure_times", [])
+    arrival_times: list[str] = route.get("arrival_times", [])
+
+    values = {
+        "origin": (stops[0] if stops else state.get("origin", "")) or "your origin",
+        "destination": (stops[-1] if stops else state.get("destination", "")) or "your destination",
+        "departure": departure_times[0] if departure_times else "—",
+        "arrival": arrival_times[-1] if arrival_times else "—",
+        "duration": (
+            _calc_duration(departure_times[0], arrival_times[-1])
+            if departure_times and arrival_times
+            else "unknown"
+        ),
+    }
+
+    template = _PLAIN_ROUTE.get(language, _PLAIN_ROUTE[Language.ENGLISH])
+    return {
+        "final_response_native": template.format(**values),
+        "final_response_en": _PLAIN_ROUTE[Language.ENGLISH].format(**values),
+    }
+
 
 def generate_response(state: dict) -> dict:
     """
@@ -108,19 +164,33 @@ def generate_response(state: dict) -> dict:
     level = disruption.get("level", DisruptionLevel.CLEAR)
     replanned = state.get("replan_attempts", 0) > 0
 
-    if not replanned and level == DisruptionLevel.CLEAR:
-        return _generate_clear_response(state, language)
-    elif state.get("alternative_route"):
-        return _generate_disrupted_response(state, language)
-    else:
-        return _generate_no_alternative_response(state, language)
+    try:
+        if not replanned and level == DisruptionLevel.CLEAR:
+            return _generate_clear_response(state, language)
+        elif state.get("alternative_route"):
+            return _generate_disrupted_response(state, language)
+        else:
+            return _generate_no_alternative_response(state, language)
+    except Exception as exc:
+        # Degrade, never crash. Everything upstream of this — routes, fares,
+        # ranking, the disruption check — has already run and is sitting in
+        # state; a failure to *phrase* it is not a reason to discard it.
+        logger.warning(
+            "Response generation failed (%s: %s) — falling back to the computed plan.",
+            type(exc).__name__, exc,
+        )
+        return _plain_route_response(state, language)
 
 
 @retry(
     retry=retry_if_exception_type(NLUParseError),
     stop=stop_after_attempt(2),
     wait=wait_fixed(1),
-    reraise=False,
+    # reraise=True so exhaustion surfaces the original NLUParseError. With
+    # reraise=False tenacity raises RetryError instead, which is not an
+    # NLUParseError, so no caller recognised it and the whole turn died at the
+    # API boundary — discarding a plan that had already been computed.
+    reraise=True,
 )
 def _generate_clear_response(state: dict, language: str) -> dict:
     """Generate response for a clear, undisrupted route."""
@@ -162,7 +232,11 @@ def _generate_clear_response(state: dict, language: str) -> dict:
     retry=retry_if_exception_type(NLUParseError),
     stop=stop_after_attempt(2),
     wait=wait_fixed(1),
-    reraise=False,
+    # reraise=True so exhaustion surfaces the original NLUParseError. With
+    # reraise=False tenacity raises RetryError instead, which is not an
+    # NLUParseError, so no caller recognised it and the whole turn died at the
+    # API boundary — discarding a plan that had already been computed.
+    reraise=True,
 )
 def _generate_disrupted_response(state: dict, language: str) -> dict:
     """Generate response for a disrupted route that has a valid alternative."""

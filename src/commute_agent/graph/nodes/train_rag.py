@@ -1,13 +1,31 @@
 """
-Train RAG node — enriches train routes with real schedule data from trainschedule.lk.
+Train enrichment node.
 
-For each train route in candidate_routes:
-1. Uses the Groq LLM to map Google Maps station names to official trainschedule.lk names
-   (reference list loaded from data/stations.json).
-2. Scrapes the timetable page for that origin-destination pair.
-3. Updates departure_times and arrival_times in the route dict.
+**The trainschedule.lk scrape is disabled and must stay disabled.** `_SCRAPE_BASE`
+below pins a site-internal path segment (`abucnia`) that resolves to one fixed
+journey — Colombo Fort → Rambukkana — and returns that same page, at HTTP 200
+with a valid table, for *every* origin/destination slug. Nothing in the response
+signals the mismatch, so the parse succeeded and the wrong times were trusted.
 
-Falls back gracefully on network errors or scrape failures.
+Until 2026-07-29 this node then *deleted* every Google Maps train route and
+rebuilt `candidate_routes` from those rows, which meant a Colombo Fort → Kandy
+query answered with Rambukkana times labelled Kandy. Maps' correct times were
+not retained anywhere in state, so the error was unrecoverable downstream. That
+made the system measurably less accurate than Google Maps alone for every train
+query in the country.
+
+The node now keeps the Google Maps times and records where they came from. It
+still runs, and still reports itself in the trace, so the pipeline shape and the
+agent-trace panel are unchanged — it simply no longer destroys the one accurate
+source of train times the system has.
+
+Re-enabling any scrape here requires a source that is verifiably route-specific
+(assert the response actually names the requested destination before trusting a
+single row of it), and the replacement must record provenance rather than
+silently overwriting Maps.
+
+The scrape helpers below are retained, unreferenced, so the failure mode stays
+documented next to the code that caused it.
 """
 
 from __future__ import annotations
@@ -27,6 +45,7 @@ from commute_agent.core.config import get_settings
 from commute_agent.core.exceptions import NLUParseError
 from commute_agent.core.logging import get_logger
 from commute_agent.domain.enums import TransitMode
+from commute_agent.domain.provenance import SOURCE_GOOGLE_MAPS, stamp_route_provenance
 from commute_agent.graph.state import AgentState
 
 logger = get_logger(__name__)
@@ -180,80 +199,48 @@ def _find_next_trains(
 
 def train_rag_node(state: AgentState) -> AgentState:
     """
-    Enrich train routes in candidate_routes with real trainschedule.lk data.
+    Retain the Google Maps train times and record their provenance.
 
-    Reads:  candidate_routes, origin, destination, requested_time
-    Writes: candidate_routes (updated train routes with real departure/arrival times)
+    No network call, no LLM call, no mutation of any time. See the module
+    docstring for why the scrape this node used to perform was removed rather
+    than repaired.
+
+    Reads:  candidate_routes
+    Writes: candidate_routes (provenance stamped on train routes only)
     """
     trace = list(state.get("trace", []))
     trace.append(NODE_NAME)
 
     candidate_routes: list[dict] = state.get("candidate_routes", [])
-    requested_time = state.get("requested_time")
 
     train_routes = [r for r in candidate_routes if r.get("transit_mode") == TransitMode.TRAIN.value]
     if not train_routes:
-        logger.info("[%s] No train routes to enrich.", NODE_NAME)
+        logger.info("[%s] No train routes present.", NODE_NAME)
         return {**state, "trace": trace}
-
-    # Map station names once for the whole batch
-    origin_gmaps = state.get("origin", "")
-    dest_gmaps = state.get("destination", "")
-
-    official_origin = _map_station_name(origin_gmaps) if origin_gmaps else None
-    official_dest = _map_station_name(dest_gmaps) if dest_gmaps else None
-
-    if not official_origin:
-        official_origin = origin_gmaps
-    if not official_dest:
-        official_dest = dest_gmaps
-
-    # Small polite delay before scraping
-    time.sleep(0.5)
-    schedules = _scrape_schedule(official_origin, official_dest)
-
-    if not schedules:
-        logger.warning(
-            "[%s] No schedule data retrieved for %r -> %r; keeping Google Maps times.",
-            NODE_NAME, official_origin, official_dest,
-        )
-        return {**state, "trace": trace}
-
-    next_trains = _find_next_trains(schedules, requested_time, max_results=5)
-
-    # Rebuild candidate_routes: replace each train route with one enriched entry per scraped train
-    enriched: list[dict] = []
-    bus_routes = [r for r in candidate_routes if r.get("transit_mode") != TransitMode.TRAIN.value]
-    enriched.extend(bus_routes)
-
-    base_train_route = train_routes[0]  # use first train route as template
-    for i, sched in enumerate(next_trains):
-        updated = dict(base_train_route)
-        updated["route_id"] = f"{base_train_route.get('route_id', 'TRAIN')}-sched{i}"
-        updated["departure_times"] = [sched["departure"]]
-        updated["arrival_times"] = [sched["arrival"]]
-        updated["_train_name"] = sched.get("train_name", "")
-        desc = base_train_route.get("description", "")
-        if sched.get("train_name") and sched["train_name"] not in desc:
-            updated["description"] = f"{sched['train_name']} — {desc}" if desc else sched["train_name"]
-        enriched.append(updated)
-
-    # Preserve candidate_route as updated best
-    candidate_route = state.get("candidate_route")
-    if enriched:
-        # Prefer first available train route among enriched
-        train_enriched = [r for r in enriched if r.get("transit_mode") == TransitMode.TRAIN.value]
-        if train_enriched:
-            candidate_route = train_enriched[0]
 
     logger.info(
-        "[%s] Replaced %d Google Maps train route(s) with %d scraped schedule(s).",
-        NODE_NAME, len(train_routes), len(next_trains),
+        "[%s] Keeping Google Maps times for %d train route(s); local schedule source disabled.",
+        NODE_NAME, len(train_routes),
     )
+
+    stamped = [
+        stamp_route_provenance(route, SOURCE_GOOGLE_MAPS)
+        if route.get("transit_mode") == TransitMode.TRAIN.value
+        else route
+        for route in candidate_routes
+    ]
+
+    candidate_route = state.get("candidate_route")
+    if candidate_route is not None:
+        best_id = candidate_route.get("route_id")
+        candidate_route = next(
+            (r for r in stamped if r.get("route_id") == best_id),
+            candidate_route,
+        )
 
     return {
         **state,
         "trace": trace,
-        "candidate_routes": enriched,
+        "candidate_routes": stamped,
         "candidate_route": candidate_route,
     }
