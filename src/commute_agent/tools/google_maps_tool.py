@@ -34,12 +34,36 @@ def _client() -> googlemaps.Client:
 
 
 def _parse_departure_time(time_str: Optional[str]) -> datetime:
-    """Convert HH:MM string to today's datetime, or return now if absent."""
+    """Convert an HH:MM string to today's datetime, or now if absent/unreadable.
+
+    Unreadable matters: the NLU is asked for HH:MM but will happily return a
+    phrase. "cheapest way to Kandy tomorrow morning" yields
+    requested_time="morning", and the previous `map(int, s.split(":"))` raised
+    ValueError straight out of the planner node, killing the whole turn — the
+    commuter saw "I couldn't plan that journey" and no options at all, neither
+    bus nor train, for an entirely ordinary phrasing.
+
+    Falling back to `now` is the same thing an absent time already did. A time
+    we cannot read is a time we do not have; it is not a reason to discard a
+    journey we can otherwise plan. Both 24-hour and 12-hour forms are accepted
+    because both reach this function from different upstream paths.
+    """
     if not time_str:
         return datetime.now()
+
+    cleaned = time_str.replace(" (next day)", "").strip()
     today = date.today()
-    hour, minute = map(int, time_str.split(":"))
-    return datetime(today.year, today.month, today.day, hour, minute)
+    for fmt in ("%H:%M", "%I:%M %p", "%I:%M%p"):
+        try:
+            parsed = datetime.strptime(cleaned, fmt)
+        except ValueError:
+            continue
+        return datetime(today.year, today.month, today.day, parsed.hour, parsed.minute)
+
+    logger.warning(
+        "Unreadable departure time %r — planning from now instead.", time_str
+    )
+    return datetime.now()
 
 
 def _unix_to_hhmm(unix_ts: int) -> str:
