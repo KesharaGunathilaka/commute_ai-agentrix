@@ -15,6 +15,29 @@ times used for ranking and response generation, since the archived data is
 best-effort (PDF-extracted, of unknown freshness).
 
 Falls back gracefully when no match is found at all.
+
+## What the timetable is and is not trusted for
+
+The curated JSON is trusted for DEPARTURE TIMES and nothing else. Maps returns
+the single next departure it knows about; the timetable holds the published
+list, so the commuter can be shown the next service after the time they asked
+for. That is a real coverage gain over Maps alone.
+
+It is not trusted for JOURNEY DURATION. The file used to carry
+`journey_time_minutes`, and the audit found the value describing a sub-segment
+rather than the named route in at least 9 of its 20 records — route 32
+"Colombo - Kataragama" carried 15 minutes, route 138 carried 47. Arrival was
+computed as departure plus that figure, which put a 47-minute Colombo Fort ->
+Kandy bus on the "Fastest" plan card. The field has been removed from the data
+file rather than corrected: no authoritative public source for Sri Lankan bus
+journey times exists (the NTC publishes fares, not durations), so any
+replacement value would have been invented.
+
+A bus leg enriched here is therefore mixed-provenance, and the override record
+says so per field: departure from `local_timetable`, duration — and hence the
+arrival derived from it — from `google_maps`. Where either is unavailable the
+Maps times are kept untouched; a departure with no defensible duration is not
+turned into an arrival.
 """
 
 from __future__ import annotations
@@ -147,6 +170,38 @@ def _compute_arrival(departure: str, journey_minutes: int) -> str:
         return "—"
 
 
+def _maps_duration_minutes(route: dict) -> Optional[int]:
+    """How long Google Maps says this route takes, or None if it can't be read.
+
+    This replaced `journey_time_minutes` from the curated timetable, which the
+    audit found wrong in at least 9 of 20 records — route 32 "Colombo –
+    Kataragama" carried 15 minutes, route 138 carried 47, and that 47 was being
+    applied to a Colombo Fort -> Kandy itinerary. There is no authoritative
+    public source for Sri Lankan bus journey times (the NTC publishes fares,
+    not durations), so the field was removed rather than corrected, and the
+    duration now comes from the only source that has one.
+
+    None when either endpoint is unparseable. Callers must then leave the Maps
+    times alone entirely: a departure with no defensible duration cannot be
+    turned into an arrival, and a missing duration is missing, not zero.
+    """
+    departures = route.get("departure_times") or []
+    arrivals = route.get("arrival_times") or []
+    if not departures or not arrivals:
+        return None
+
+    try:
+        start = datetime.strptime(departures[0].replace(" (next day)", "").strip(), "%H:%M")
+        end = datetime.strptime(arrivals[-1].replace(" (next day)", "").strip(), "%H:%M")
+    except ValueError:
+        return None
+
+    minutes = int((end - start).total_seconds() // 60)
+    if minutes < 0:
+        minutes += 24 * 60  # crosses midnight
+    return minutes or None
+
+
 def bus_rag_node(state: AgentState) -> AgentState:
     """
     Enrich bus routes in candidate_routes with scheduled departure/arrival times.
@@ -208,20 +263,38 @@ def bus_rag_node(state: AgentState) -> AgentState:
             continue
 
         next_dep = _next_departure(entry["departures"], requested_time)
-        journey_mins = entry.get("journey_time_minutes", 60)
-        arrival = _compute_arrival(next_dep, journey_mins) if next_dep else "—"
+        maps_minutes = _maps_duration_minutes(route)
+
+        # The timetable supplies WHEN a bus leaves; Google Maps supplies HOW
+        # LONG it takes. Neither alone is enough to state an arrival, so if
+        # either is missing the Maps times are left exactly as they are —
+        # never a departure paired with an invented duration.
+        if not next_dep or maps_minutes is None:
+            logger.debug(
+                "[%s] Route %r: no defensible override (next_dep=%r maps_minutes=%r) "
+                "— keeping Google Maps times.",
+                NODE_NAME, route_num, next_dep, maps_minutes,
+            )
+            updated = dict(route)
+            updated["_timetable_route_name"] = entry.get("route_name", "")
+            enriched.append(updated)
+            continue
+
+        arrival = _compute_arrival(next_dep, maps_minutes)
 
         updated = dict(route)
-        updated["departure_times"] = [next_dep] if next_dep else route.get("departure_times", [])
-        updated["arrival_times"] = [arrival] if arrival else route.get("arrival_times", [])
+        updated["departure_times"] = [next_dep]
+        updated["arrival_times"] = [arrival]
         updated["_timetable_route_name"] = entry.get("route_name", "")
-        updated["_journey_time_minutes"] = journey_mins
 
-        # This branch replaces Google Maps times with curated ones, so the
-        # route's headline times are no longer Maps-sourced and must not keep
-        # claiming to be. `legs` is deliberately left alone: those times were
-        # not touched, and re-stamping them would attribute Maps data to a
-        # source it didn't come from.
+        # This branch replaces the Maps departure with a curated one, so the
+        # route's headline departure is no longer Maps-sourced and must not
+        # keep claiming to be. The DURATION behind the new arrival is still
+        # Maps', which is why the override records both sources rather than one
+        # — a bus leg is now genuinely mixed-provenance and saying otherwise
+        # would credit one source with the other's number.
+        #
+        # `legs` is deliberately left alone: those times were not touched.
         #
         # The previous values are kept rather than discarded. R1 happened
         # because an override left nothing behind to compare against, so the
@@ -231,14 +304,18 @@ def bus_rag_node(state: AgentState) -> AgentState:
             "fields": ["departure_times", "arrival_times"],
             "replaced_source": route.get("source") or SOURCE_GOOGLE_MAPS,
             "new_source": SOURCE_LOCAL_TIMETABLE,
+            "departure_source": SOURCE_LOCAL_TIMETABLE,
+            "duration_source": SOURCE_GOOGLE_MAPS,
+            "duration_minutes": maps_minutes,
             "timetable_route_name": entry.get("route_name", ""),
             "previous_departure_times": route.get("departure_times", []),
             "previous_arrival_times": route.get("arrival_times", []),
         }
 
         logger.info(
-            "[%s] Enriched bus route %r: dep=%s arr=%s (%d min)",
-            NODE_NAME, route_num, next_dep, arrival, journey_mins,
+            "[%s] Enriched bus route %r: dep=%s (local timetable) arr=%s "
+            "(+%d min, Google Maps duration)",
+            NODE_NAME, route_num, next_dep, arrival, maps_minutes,
         )
         enriched.append(updated)
 

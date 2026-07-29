@@ -49,11 +49,21 @@ export interface Provenance {
   captured_date?: string | null;
 }
 
-/** Recorded whenever local data replaces a Google Maps value. */
+/**
+ * Recorded whenever local data replaces a Google Maps value.
+ *
+ * A bus leg is mixed-provenance: the departure comes from the curated
+ * timetable, the duration (and so the arrival derived from it) from Google
+ * Maps. `departure_source` and `duration_source` name them separately, because
+ * one field for both would credit one source with the other's number.
+ */
 export interface ProvenanceOverride {
   fields: string[];
   replaced_source: string;
   new_source: string;
+  departure_source?: string;
+  duration_source?: string;
+  duration_minutes?: number;
   timetable_route_name?: string;
   previous_departure_times?: string[];
   previous_arrival_times?: string[];

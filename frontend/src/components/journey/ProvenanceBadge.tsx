@@ -86,20 +86,34 @@ export function RouteProvenance({ route, className }: { route: Route; className?
   const override = route._provenance_override;
 
   return (
-    <div className={cn("flex flex-wrap items-center gap-1.5", className)}>
-      <ProvenanceBadge provenance={route} prefix="Times" />
-      {override && (
-        <span
-          className="text-[10px] text-ink-700"
-          title={`Google Maps gave ${
-            override.previous_departure_times?.[0] ?? "a departure time"
-          }; the local timetable was used instead.`}
-        >
-          replaced {sourceLabel(override.replaced_source)}
-          {override.previous_departure_times?.[0]
-            ? ` (was ${override.previous_departure_times[0]})`
-            : ""}
-        </span>
+    <div className={cn("space-y-1", className)}>
+      <div className="flex flex-wrap items-center gap-1.5">
+        <ProvenanceBadge provenance={route} prefix="Times" />
+        {override && (
+          <span
+            className="text-[10px] text-ink-700"
+            title={`Google Maps gave ${
+              override.previous_departure_times?.[0] ?? "a departure time"
+            }; the local timetable was used instead.`}
+          >
+            replaced {sourceLabel(override.replaced_source)}
+            {override.previous_departure_times?.[0]
+              ? ` (was ${override.previous_departure_times[0]})`
+              : ""}
+          </span>
+        )}
+      </div>
+
+      {/* A bus leg draws its departure and its duration from two different
+          places, so one attribution line would be a half-truth. The curated
+          timetable has no journey times at all — that field was removed rather
+          than corrected, since nothing authoritative publishes them. */}
+      {override?.departure_source && override.duration_source && (
+        <p className="text-[10px] leading-relaxed text-ink-700">
+          Departure from {sourceLabel(override.departure_source)}; duration
+          {override.duration_minutes ? ` (${override.duration_minutes} min)` : ""} and arrival
+          from {sourceLabel(override.duration_source)}.
+        </p>
       )}
     </div>
   );

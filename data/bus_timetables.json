@@ -4,159 +4,132 @@
     "route_name": "Colombo - Kandy (Normal)",
     "origin_stop": "Bastian Mawatha Bus Stand",
     "destination_stop": "Kandy Goods Shead Bus Stand",
-    "departures": ["04:30","05:00","05:30","06:00","06:30","07:00","07:30","08:00","08:30","09:00","09:30","10:00","10:30","11:00","12:00","13:00","14:00","15:00","16:00","16:30","17:00","17:30","18:00","18:30","19:00","20:00"],
-    "journey_time_minutes": 180
+    "departures": ["04:30","05:00","05:30","06:00","06:30","07:00","07:30","08:00","08:30","09:00","09:30","10:00","10:30","11:00","12:00","13:00","14:00","15:00","16:00","16:30","17:00","17:30","18:00","18:30","19:00","20:00"]
   },
   {
     "route_number": "001",
     "route_name": "Colombo - Kandy (A/C Luxury)",
     "origin_stop": "Bastian Mawatha Bus Stand",
     "destination_stop": "Kandy Goods Shead Bus Stand",
-    "departures": ["05:30","06:30","07:30","08:30","09:30","11:00","13:00","15:00","17:00","19:00"],
-    "journey_time_minutes": 155
+    "departures": ["05:30","06:30","07:30","08:30","09:30","11:00","13:00","15:00","17:00","19:00"]
   },
   {
     "route_number": "08",
     "route_name": "Colombo - Matale",
     "origin_stop": "Bastian Mawatha Bus Stand",
     "destination_stop": "Kandy Clock Tower",
-    "departures": ["04:25","05:00","05:30","06:00","06:30","07:00","07:30","08:00","09:00","10:00","12:00","14:00","16:00","18:00"],
-    "journey_time_minutes": 210
+    "departures": ["04:25","05:00","05:30","06:00","06:30","07:00","07:30","08:00","09:00","10:00","12:00","14:00","16:00","18:00"]
   },
   {
     "route_number": "79",
     "route_name": "Colombo - Nuwara Eliya",
     "origin_stop": "Bastian Mawatha Bus Stand",
     "destination_stop": "Peradeniya",
-    "departures": ["04:25","05:30","07:00","08:30","10:00","12:00","14:00","16:00"],
-    "journey_time_minutes": 195
+    "departures": ["04:25","05:30","07:00","08:30","10:00","12:00","14:00","16:00"]
   },
   {
     "route_number": "662",
     "route_name": "Kandy - Mawanella",
     "origin_stop": "Peradeniya",
     "destination_stop": "Kandy Goods Shead Bus Stand",
-    "departures": ["05:00","06:00","07:00","07:30","08:00","08:30","09:00","10:00","11:00","12:00","13:00","14:00","15:00","16:00","17:00","18:00","19:00"],
-    "journey_time_minutes": 20
+    "departures": ["05:00","06:00","07:00","07:30","08:00","08:30","09:00","10:00","11:00","12:00","13:00","14:00","15:00","16:00","17:00","18:00","19:00"]
   },
   {
     "route_number": "9",
     "route_name": "Colombo - Digana",
     "origin_stop": "Bastian Mawatha Bus Stand",
     "destination_stop": "Hotel Suisse",
-    "departures": ["04:25","05:30","06:30","07:30","08:30","10:00","12:00","14:00","16:00","18:00"],
-    "journey_time_minutes": 210
+    "departures": ["04:25","05:30","06:30","07:30","08:30","10:00","12:00","14:00","16:00","18:00"]
   },
   {
     "route_number": "EX1",
     "route_name": "Colombo - Galle (Expressway SLTB)",
     "origin_stop": "Bastian Mawatha Bus Stand",
     "destination_stop": "Galle Highway And Long Distance",
-    "departures": ["05:00","05:30","06:00","06:30","07:00","07:20","07:40","08:00","08:30","09:00","10:00","11:00","12:00","13:00","14:00","15:00","16:00","17:00","18:00","19:00"],
-    "journey_time_minutes": 90
-  },
-  {
-    "route_number": "EX1",
-    "route_name": "Colombo - Matara (Expressway)",
-    "origin_stop": "Bastian Mawatha Bus Stand",
-    "destination_stop": "Bus Stand Matara",
-    "departures": ["05:00","06:00","07:00","08:00","09:00","10:00","11:00","12:00","13:00","14:00","15:00","16:00","17:00","18:00"],
-    "journey_time_minutes": 150
+    "departures": ["05:00","05:30","06:00","06:30","07:00","07:20","07:40","08:00","08:30","09:00","10:00","11:00","12:00","13:00","14:00","15:00","16:00","17:00","18:00","19:00"]
   },
   {
     "route_number": "32",
     "route_name": "Colombo - Kataragama",
     "origin_stop": "Bus Stand Matara",
     "destination_stop": "Ruhuna Campus",
-    "departures": ["05:30","06:30","07:30","08:30","09:30","10:30","11:30","12:30","13:30","14:30","15:30","16:30","17:30","18:30"],
-    "journey_time_minutes": 15
+    "departures": ["05:30","06:30","07:30","08:30","09:30","10:30","11:30","12:30","13:30","14:30","15:30","16:30","17:30","18:30"]
   },
   {
     "route_number": "346",
     "route_name": "Matara - Dickwella",
     "origin_stop": "Bus Stand Matara",
     "destination_stop": "Ruhuna Campus",
-    "departures": ["05:00","05:45","06:30","07:15","08:00","08:45","09:30","10:15","11:00","11:45","12:30","13:15","14:00","14:45","15:30","16:15","17:00","17:45","18:30","19:15"],
-    "journey_time_minutes": 12
+    "departures": ["05:00","05:45","06:30","07:15","08:00","08:45","09:30","10:15","11:00","11:45","12:30","13:15","14:00","14:45","15:30","16:15","17:00","17:45","18:30","19:15"]
   },
   {
     "route_number": "360",
     "route_name": "Matara - Akurassa",
     "origin_stop": "Southern Express",
     "destination_stop": "Matara",
-    "departures": ["05:30","06:30","07:30","08:30","09:30","10:30","11:30","12:30","13:30","14:30","15:30","16:30","17:30","18:30"],
-    "journey_time_minutes": 20
+    "departures": ["05:30","06:30","07:30","08:30","09:30","10:30","11:30","12:30","13:30","14:30","15:30","16:30","17:30","18:30"]
   },
   {
     "route_number": "02",
     "route_name": "Colombo - Galle (Normal)",
     "origin_stop": "Bastian Mawatha Bus Stand",
     "destination_stop": "Galle Highway And Long Distance",
-    "departures": ["04:30","05:00","05:30","06:00","06:30","07:00","07:30","08:00","09:00","10:00","12:00","14:00","16:00","18:00"],
-    "journey_time_minutes": 180
+    "departures": ["04:30","05:00","05:30","06:00","06:30","07:00","07:30","08:00","09:00","10:00","12:00","14:00","16:00","18:00"]
   },
   {
     "route_number": "06",
     "route_name": "Colombo - Kurunegala",
     "origin_stop": "Pettah Slt Bus Stop",
     "destination_stop": "Kurunegala",
-    "departures": ["05:00","05:30","06:00","06:30","07:00","07:30","08:00","08:30","09:00","10:00","11:00","12:00","14:00","16:00","18:00"],
-    "journey_time_minutes": 120
+    "departures": ["05:00","05:30","06:00","06:30","07:00","07:30","08:00","08:30","09:00","10:00","11:00","12:00","14:00","16:00","18:00"]
   },
   {
     "route_number": "15",
     "route_name": "Colombo - Anuradhapura",
     "origin_stop": "Pettah Slt Bus Stop",
     "destination_stop": "Anuradhapura",
-    "departures": ["05:00","06:00","07:00","08:00","09:00","10:00","12:00","14:00","16:00"],
-    "journey_time_minutes": 240
+    "departures": ["05:00","06:00","07:00","08:00","09:00","10:00","12:00","14:00","16:00"]
   },
   {
     "route_number": "19",
     "route_name": "Colombo - Negombo",
     "origin_stop": "Pettah Slt Bus Stop",
     "destination_stop": "Negombo",
-    "departures": ["05:00","05:30","06:00","06:30","07:00","07:30","08:00","08:30","09:00","10:00","11:00","12:00","13:00","14:00","15:00","16:00","17:00","18:00","19:00","20:00"],
-    "journey_time_minutes": 75
+    "departures": ["05:00","05:30","06:00","06:30","07:00","07:30","08:00","08:30","09:00","10:00","11:00","12:00","13:00","14:00","15:00","16:00","17:00","18:00","19:00","20:00"]
   },
   {
     "route_number": "98",
     "route_name": "Colombo - Balangoda",
     "origin_stop": "Technical Junction Maradana",
     "destination_stop": "Awissawella",
-    "departures": ["04:21","05:00","05:45","06:30","07:15","08:00","08:45","09:30","10:30","12:00","14:00","16:00","18:00"],
-    "journey_time_minutes": 94
+    "departures": ["04:21","05:00","05:45","06:30","07:15","08:00","08:45","09:30","10:30","12:00","14:00","16:00","18:00"]
   },
   {
     "route_number": "69",
     "route_name": "Kandy - Awissawella",
     "origin_stop": "Awissawella",
     "destination_stop": "Kandy Goods Shead Bus Stand",
-    "departures": ["05:00","06:00","06:26","07:00","08:00","09:00","10:00","12:00","14:00","16:00","18:00"],
-    "journey_time_minutes": 140
+    "departures": ["05:00","06:00","06:26","07:00","08:00","09:00","10:00","12:00","14:00","16:00","18:00"]
   },
   {
     "route_number": "103",
     "route_name": "Narahenpita - Fort",
     "origin_stop": "Pettah Bus Stop",
     "destination_stop": "Technical Junction Maradana",
-    "departures": ["04:02","04:30","05:00","05:30","06:00","06:30","07:00","07:30","08:00","08:30","09:00","10:00","12:00","14:00","16:00","17:00","18:00","19:00"],
-    "journey_time_minutes": 10
+    "departures": ["04:02","04:30","05:00","05:30","06:00","06:30","07:00","07:30","08:00","08:30","09:00","10:00","12:00","14:00","16:00","17:00","18:00","19:00"]
   },
   {
     "route_number": "138",
     "route_name": "Kadawatha - Pettah",
     "origin_stop": "Pettah Slt Bus Stop",
     "destination_stop": "Kadawatha Bus Stand",
-    "departures": ["05:00","05:30","06:00","06:30","07:00","07:30","08:00","08:30","08:40","09:00","10:00","12:00","14:00","16:00","17:00","18:00"],
-    "journey_time_minutes": 47
+    "departures": ["05:00","05:30","06:00","06:30","07:00","07:30","08:00","08:30","08:40","09:00","10:00","12:00","14:00","16:00","17:00","18:00"]
   },
   {
     "route_number": "43",
     "route_name": "Kandy - Anuradhapura",
     "origin_stop": "Kandy",
     "destination_stop": "Anuradhapura",
-    "departures": ["05:30","07:00","09:00","11:00","13:00","15:00","17:00"],
-    "journey_time_minutes": 180
+    "departures": ["05:30","07:00","09:00","11:00","13:00","15:00","17:00"]
   }
 ]

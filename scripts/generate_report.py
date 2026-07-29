@@ -765,7 +765,10 @@ def build_report():
 ]""")
 
     add_heading(doc, "9.3 bus_timetables.json", 2)
-    add_body(doc, "Mock bus timetable data. Route numbers match Google Maps short_names (e.g. EX1, 346).")
+    add_body(doc, "Curated bus departure times. Route numbers match Google Maps short_names "
+                  "(e.g. EX1, 346). Departure times only — the file carries no journey "
+                  "duration, because no authoritative public source for Sri Lankan bus "
+                  "journey times exists. Leg duration comes from Google Maps.")
     add_code_block(doc, """\
 [
   {
@@ -773,8 +776,7 @@ def build_report():
     "route_name":           "Colombo - Galle (Expressway SLTB)",
     "origin_stop":          "Bastian Mawatha Bus Stand",
     "destination_stop":     "Galle Highway And Long Distance",
-    "departures":           ["05:00","05:30","06:00","06:30","07:00",...],
-    "journey_time_minutes": 90
+    "departures":           ["05:00","05:30","06:00","06:30","07:00",...]
   }
 ]""")
 

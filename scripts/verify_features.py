@@ -337,12 +337,8 @@ def verify_variants_live(client) -> None:
     # A deadline nothing can meet must still be reported, not hidden: the
     # variant is selected and flagged rather than suppressed.
     #
-    # 07:45 rather than something more generous on purpose. `bus_rag` attaches
-    # `journey_time_minutes` from data/bus_timetables.json, and that field
-    # contradicts its own route name in at least 9 of 20 records (audit R3) —
-    # a Colombo Fort -> Kandy bus comes back claiming a 47-minute journey. Bus
-    # data correction is out of scope for this work, so the check picks a
-    # deadline no route can satisfy even with that figure taken at face value.
+    # 07:45 leaves no room for any option: the earliest departure Maps or the
+    # timetable knows about is 07:30 and the corridor is a ~2.5 hour journey.
     infeasible = run_commute_agent_from_intent({
         "origin": "Colombo Fort", "destination": "Kandy", "requested_time": "07:30",
         "expected_arrival_time": "07:45", "language": "en",
