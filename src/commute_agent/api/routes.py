@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import io
 import json
+from dataclasses import dataclass
 from typing import Iterator, Optional
 
 from fastapi import APIRouter, HTTPException, Query
@@ -121,16 +122,66 @@ def _finalise_plan(session: Session, state: dict) -> ChatResponse:
     )
 
 
+@dataclass
+class _IntakeFailure:
+    """Stands in for an IntakeResult when the NLU call itself fell over.
+
+    Duck-types the fields both chat handlers read. `outcome` is the existing
+    PARSE_ERROR — an accurate description of what happened, and already a legal
+    `ChatResponse.kind`, so the wire shape is untouched.
+    """
+
+    intent: dict
+    message: str
+    message_en: str
+    detail: str
+    outcome: TurnOutcome = TurnOutcome.PARSE_ERROR
+    clarification: None = None
+
+
+# Shown when intake itself fails — the parse, not the planning. Trilingual for
+# the same reason every other user-facing string is: an English-only apology to
+# a commuter who has been typing Sinhala is its own small failure.
+_INTAKE_FAILED = {
+    "si": "සමාවන්න — මට එය තේරුම් ගැනීමට නොහැකි විය. කරුණාකර ඔබේ ගමන නැවත සඳහන් කරන්න.",
+    "ta": "மன்னிக்கவும் — என்னால் அதைப் புரிந்துகொள்ள முடியவில்லை. உங்கள் பயணத்தை மீண்டும் தெரிவிக்கவும்.",
+    "en": "Sorry — I couldn't understand that just now. Please tell me your journey again.",
+}
+
+
 def _run_intake(message: str, session_id: Optional[str]) -> tuple[Session, object]:
-    """Advance the intake machine one turn and persist the resulting intent."""
+    """Advance the intake machine one turn and persist the resulting intent.
+
+    Never raises. `advance()` calls the NLU, and the NLU call can fail for
+    reasons that have nothing to do with the commuter — a Groq rate limit is
+    the likely one during a demo, and the free tier's daily token budget is
+    finite. This function used to sit outside `chat()`'s try block, so such a
+    failure propagated uncaught and FastAPI returned HTTP 500: the browser saw
+    a dead endpoint rather than a sentence.
+
+    The R4 fix gave the responder this same treatment. Intake is the earlier,
+    more visible half of the same problem — it is the very first call of the
+    very first turn.
+    """
     store = get_store()
     session = store.get_or_create(session_id)
 
-    result = advance(
-        message=message,
-        intent=session.intent,
-        last_planned=session.last_planned_intent,
-    )
+    try:
+        result = advance(
+            message=message,
+            intent=session.intent,
+            last_planned=session.last_planned_intent,
+        )
+    except Exception as exc:
+        logger.warning("Intake failed (%s: %s) — replying in the commuter's language.",
+                       type(exc).__name__, exc)
+        language = (session.intent or {}).get("language") or "en"
+        return session, _IntakeFailure(
+            intent=session.intent,
+            message=_INTAKE_FAILED.get(language, _INTAKE_FAILED["en"]),
+            message_en=_INTAKE_FAILED["en"],
+            detail=str(exc),
+        )
 
     session.intent = result.intent
     if result.outcome is TurnOutcome.RESTART:
@@ -157,6 +208,10 @@ async def chat(body: ChatRequest) -> ChatResponse:
             session,
             kind=result.outcome.value,
             message=result.message,
+            # Present only on an intake failure, which carries its own English
+            # gloss. A normal IntakeResult has no such attribute and _reply
+            # then falls back to `message`, exactly as before.
+            message_en=getattr(result, "message_en", ""),
             clarification=result.clarification.value if result.clarification else None,
             detail=result.detail,
         )
@@ -211,6 +266,10 @@ async def chat_stream(
             session,
             kind=result.outcome.value,
             message=result.message,
+            # Present only on an intake failure, which carries its own English
+            # gloss. A normal IntakeResult has no such attribute and _reply
+            # then falls back to `message`, exactly as before.
+            message_en=getattr(result, "message_en", ""),
             clarification=result.clarification.value if result.clarification else None,
             detail=result.detail,
         )
