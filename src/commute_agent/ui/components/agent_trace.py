@@ -8,7 +8,9 @@ _NODE_ICONS = {
     "planner": "🗺️",
     "bus_rag": "🚌",
     "train_rag": "🚆",
+    "fares": "🎫",
     "ranker": "🏆",
+    "plan_variants": "⚖️",
     "uber": "🚗",
     "monitor": "📡",
     "replanner": "🔄",
@@ -18,8 +20,13 @@ _NODE_ICONS = {
 _NODE_DESCRIPTIONS = {
     "planner": "Parsed query & discovered routes via Google Maps",
     "bus_rag": "Looked up bus timetables for scheduled departure times",
-    "train_rag": "Scraped trainschedule.lk for real train departure times",
+    # Not "Scraped trainschedule.lk" any more. That scrape returned the same
+    # Colombo Fort -> Rambukkana page for every route and its results replaced
+    # correct Maps times; it is disabled (see graph/nodes/train_rag.py).
+    "train_rag": "Kept Google Maps train times and recorded their source",
+    "fares": "Estimated fares per route from the modelled rate table",
     "ranker": "Ranked top-5 routes by time, deadline, mode, and transfers",
+    "plan_variants": "Costed the fastest, cheapest and balanced plans",
     "uber": "Checked ride-hailing options for gaps or last-mile",
     "monitor": "Checked live disruption feed for the selected route",
     "replanner": "Disruption detected — found alternative route",
