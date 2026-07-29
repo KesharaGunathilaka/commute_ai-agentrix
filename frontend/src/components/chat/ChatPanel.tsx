@@ -7,6 +7,7 @@ import { useEffect, useMemo, useRef } from "react";
 import { Composer } from "@/components/chat/Composer";
 import { JourneySidebar } from "@/components/chat/JourneySidebar";
 import { MessageBubble } from "@/components/chat/MessageBubble";
+import { BookRide, bookableSegment } from "@/components/journey/BookRide";
 import { AgentTrace } from "@/components/trace/AgentTrace";
 import { useChat } from "@/hooks/useChat";
 import { useReadAloud } from "@/hooks/useReadAloud";
@@ -19,7 +20,7 @@ I plan train and bus journeys across Sri Lanka, watch for live disruptions, and 
 Ask me in **English**, **සිංහල**, or **தமிழ்**. Where are you heading?`;
 
 export function ChatPanel({ mapsKey }: { mapsKey: string }) {
-  const { messages, journey, run, busy, send, startNewJourney } = useChat();
+  const { messages, journey, run, busy, send, bookRide, startNewJourney, sessionId } = useChat();
   const audio = useReadAloud();
 
   const bottom = useRef<HTMLDivElement>(null);
@@ -42,6 +43,14 @@ export function ChatPanel({ mapsKey }: { mapsKey: string }) {
     const last = messages.at(-1);
     if (!last || last.role !== "assistant" || last.kind !== "clarify") return null;
     return last.clarification ?? null;
+  }, [messages]);
+
+  // The floating action targets the most recent plan's first leg. Anchoring it
+  // to the latest plan rather than to each card keeps it unambiguous about
+  // which journey it books when the transcript holds several.
+  const bookable = useMemo(() => {
+    const lastPlan = [...messages].reverse().find((m) => m.state?.candidate_route);
+    return bookableSegment(lastPlan?.state?.candidate_route);
   }, [messages]);
 
   return (
@@ -123,6 +132,16 @@ export function ChatPanel({ mapsKey }: { mapsKey: string }) {
         disabled={busy}
         className="lg:sticky lg:top-4 lg:self-start"
       />
+
+      {bookable && (
+        <BookRide
+          pickup={bookable.pickup}
+          dropoff={bookable.dropoff}
+          sessionId={sessionId.current}
+          busy={busy}
+          onBook={(rideClass) => void bookRide(bookable.pickup, bookable.dropoff, rideClass)}
+        />
+      )}
     </div>
   );
 }

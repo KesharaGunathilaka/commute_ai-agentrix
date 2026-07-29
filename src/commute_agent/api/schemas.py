@@ -217,6 +217,115 @@ class ConfigResponse(BaseModel):
     supported_languages: list[str] = Field(default_factory=lambda: ["en", "si", "ta"])
 
 
+class BookingRequest(BaseModel):
+    """One tap. Pickup and drop-off are the leg's endpoints, time is now, and
+    the only genuine choice is the class of vehicle."""
+
+    session_id: str = Field(..., min_length=1, max_length=64)
+    pickup: str = Field(..., min_length=1, max_length=200)
+    dropoff: str = Field(..., min_length=1, max_length=200)
+    ride_class: str = Field(default="tuk", max_length=32)
+    """bike | tuk | car, or any synonym ride_service.normalize_vehicle knows."""
+
+
+class RideClassOption(BaseModel):
+    """One bookable vehicle class for a segment, with its simulated price."""
+
+    ride_class: str
+    label: str
+    available: bool
+    price: Optional[int] = None
+    eta_min: Optional[int] = None
+    distance_km: Optional[float] = None
+    currency: str = "LKR"
+    simulated: bool = True
+    disclaimer: str = ""
+
+
+class RideClassOptions(BaseModel):
+    """What can be booked for a segment right now.
+
+    Exists so the booking action stays one tap: the UI offers only classes
+    that will actually succeed, rather than letting the commuter pick one and
+    then telling them it isn't available. It asks nothing of the commuter — it
+    is a lookup, not a question.
+    """
+
+    pickup: str
+    dropoff: str
+    options: list[RideClassOption] = Field(default_factory=list)
+    already_booked: bool = False
+    """True when this session has already booked this exact segment. The UI
+    hides the action rather than offering the same ride twice."""
+
+    simulated: bool = True
+    disclaimer: str = ""
+
+
+class SimulatedBookingOut(BaseModel):
+    """A booking that is not a booking.
+
+    `simulated` is always true and `disclaimer` is always populated. Both come
+    from the backend rather than being asserted by the UI, so a client cannot
+    render this as a real confirmation by omitting a badge.
+    """
+
+    booking_ref: str
+    pickup: str
+    dropoff: str
+    ride_class: str
+    ride_class_label: str
+
+    eta_min: int
+    """Minutes until the ride reaches the pickup point."""
+
+    ride_duration_min: int
+    """Minutes in the vehicle."""
+
+    price: int
+    currency: str = "LKR"
+    distance_km: float
+    booked_at: str
+
+    simulated: bool = True
+    disclaimer: str = ""
+    source: Optional[str] = None
+    verified: bool = False
+
+
+class BookingResponse(BaseModel):
+    """The booking, and the journey that follows it."""
+
+    booking: SimulatedBookingOut
+    session_id: str
+
+    terminal: bool = False
+    """True when the drop-off is the commuter's final destination — there is
+    nothing left to plan, so no replan ran."""
+
+    replanned: bool = False
+    replan_departure_time: Optional[str] = None
+    """HH:MM the onward journey was planned from: booking time + eta_min +
+    ride_duration_min. Never "now" — a connecting service that leaves before
+    the ride arrives is not a connection."""
+
+    replan_offset_min: int = 0
+    """eta_min + ride_duration_min, published so the arithmetic is checkable
+    from the response alone."""
+
+    final_destination: Optional[str] = None
+    onward_plan: Optional[AgentResponse] = None
+    """Full agent state for the remainder of the journey. Same shape as a
+    /chat plan, so the frontend renders it with the same component."""
+
+    booked_segments: list[str] = Field(default_factory=list)
+    """Normalised keys of every segment booked in this session. The UI hides
+    the book action for these, so a segment can't be offered twice."""
+
+    message: str = ""
+    detail: str = ""
+
+
 class DisruptionInfo(BaseModel):
     disruption_id: str
     train_id: str = ""

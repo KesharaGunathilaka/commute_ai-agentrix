@@ -11,12 +11,17 @@ from fastapi.responses import Response, StreamingResponse
 
 from commute_agent.api.schemas import (
     AgentResponse,
+    BookingRequest,
+    BookingResponse,
     ChatRequest,
     ChatResponse,
     ConfigResponse,
     DisruptionInfo,
     JourneySummary,
     QueryRequest,
+    RideClassOption,
+    RideClassOptions,
+    SimulatedBookingOut,
     TTSRequest,
 )
 from commute_agent.api.sessions import Session, get_store
@@ -27,6 +32,15 @@ from commute_agent.graph.builder import (
     run_commute_agent,
     run_commute_agent_from_intent,
     stream_commute_agent_from_intent,
+)
+from commute_agent.tools.booking_tool import (
+    DISCLAIMER as BOOKING_DISCLAIMER,
+    RideUnavailableError,
+    UnknownRideClassError,
+    ride_class_options,
+    same_place,
+    segment_key,
+    simulate_booking,
 )
 from commute_agent.tools.cache import invalidate_all
 
@@ -286,6 +300,200 @@ async def tts(body: TTSRequest) -> Response:
         content=audio,
         media_type="audio/mpeg",
         headers={"Content-Length": str(len(audio)), "Cache-Control": "no-store"},
+    )
+
+
+# ── Simulated ride booking ────────────────────────────────────────────────────
+
+
+def _strip_booked_ride_offers(state: dict, booked: set[str]) -> dict:
+    """Remove ride offers for segments this session has already booked.
+
+    In practice the replan starts *at* the drop-off, so its legs begin at or
+    after that point and the just-booked segment cannot recur. The guard is
+    here anyway because "in practice it can't happen" is how the first loop
+    always gets written, and the cost of being sure is one dict comprehension.
+    """
+    if not booked:
+        return state
+
+    cleaned = dict(state)
+
+    origin = state.get("origin") or ""
+    destination = state.get("destination") or ""
+    if segment_key(origin, destination) in booked:
+        cleaned["uber_options"] = None
+
+    leg = state.get("last_mile_transit_leg") or {}
+    last_stops = (state.get("candidate_route") or {}).get("stops") or []
+    pickup = leg.get("board_stop") or (last_stops[-1] if last_stops else "")
+    if pickup and segment_key(pickup, destination) in booked:
+        cleaned["uber_last_mile"] = None
+        cleaned["uber_last_mile_distance_m"] = None
+        cleaned["last_mile_transit_leg"] = None
+
+    return cleaned
+
+
+@router.get("/booking/options", response_model=RideClassOptions)
+async def booking_options(
+    pickup: str = Query(..., min_length=1, max_length=200),
+    dropoff: str = Query(..., min_length=1, max_length=200),
+    session_id: Optional[str] = Query(default=None),
+) -> RideClassOptions:
+    """What can be booked for one segment, with simulated prices.
+
+    In-process and instant — `ride_service` makes no network call. The point is
+    to keep booking a single tap: the UI offers only the classes that will
+    succeed, instead of letting the commuter choose one and then discovering
+    the dummy's availability flip went against them. It asks the commuter
+    nothing.
+
+    `already_booked` reports whether this session has booked this exact
+    segment, so the action can be hidden rather than offered twice.
+    """
+    booked: set[str] = set()
+    if session_id:
+        session = get_store().get_or_create(session_id)
+        booked = {b["segment_key"] for b in session.bookings}
+
+    return RideClassOptions(
+        pickup=pickup,
+        dropoff=dropoff,
+        options=[RideClassOption(**option) for option in ride_class_options(pickup, dropoff)],
+        already_booked=segment_key(pickup, dropoff) in booked,
+        disclaimer=BOOKING_DISCLAIMER,
+    )
+
+
+@router.post("/booking/simulate", response_model=BookingResponse)
+async def simulate_ride_booking(body: BookingRequest) -> BookingResponse:
+    """
+    Book a simulated ride for one leg, then replan the rest of the journey.
+
+    **This books nothing.** The price, the ETA and the availability all come
+    from `ride_service.py`, a dummy backend; the response says so in
+    `simulated` and `disclaimer`, and the UI renders that as a badge.
+
+    The replan is a *re-entry*, not a mutation. Rather than editing the
+    existing plan and trying to recompute its connections, the journey ends at
+    the drop-off and the ordinary agent entry point is invoked again with a new
+    origin and a new departure time. There is one graph and one planning path;
+    this endpoint supplies different inputs to it.
+
+    The departure time for that re-entry is:
+
+        booking time + eta_min + ride_duration_min
+
+    not "now". Planning from now would offer a connecting service that departs
+    while the commuter is still in the vehicle. `replan_departure_time` and
+    `replan_offset_min` are both published so the arithmetic can be checked
+    from the response alone.
+
+    The deadline, the mode preference and the optimisation the commuter stated
+    are carried from the *original* intent, and the destination is their final
+    destination — not the end of the leg being replaced. A drop-off that is
+    already the final destination returns the booking alone.
+    """
+    session = get_store().get_or_create(body.session_id)
+
+    try:
+        booking = simulate_booking(body.pickup, body.dropoff, body.ride_class)
+    except UnknownRideClassError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except RideUnavailableError as exc:
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                f"{exc} "
+                + (
+                    f"Available right now: {', '.join(exc.available_classes)}."
+                    if exc.available_classes
+                    else "No vehicle class is available for this segment."
+                )
+            ),
+        ) from exc
+
+    session.bookings.append({
+        "booking": booking.to_dict(),
+        "segment_key": segment_key(booking.pickup, booking.dropoff),
+    })
+    get_store().save(session)
+
+    booked = {b["segment_key"] for b in session.bookings}
+    intent = plan_intent(session.intent)
+    final_destination = intent.get("destination")
+
+    # Terminal: the ride already ends where the commuter is going.
+    if not final_destination or same_place(booking.dropoff, final_destination):
+        return BookingResponse(
+            booking=SimulatedBookingOut(**booking.to_dict()),
+            session_id=session.session_id,
+            terminal=True,
+            final_destination=final_destination,
+            booked_segments=sorted(booked),
+            message=(
+                f"Simulated ride booked to {booking.dropoff}, which is your destination — "
+                "nothing further to plan."
+            ),
+        )
+
+    replan_at = booking.replan_departure_at()
+    replan_departure_time = replan_at.strftime("%H:%M")
+
+    # Re-entry. The origin and the departure time are new; everything the
+    # commuter actually asked for is carried across unchanged.
+    onward_intent = {
+        **intent,
+        "origin": booking.dropoff,
+        "destination": final_destination,
+        "requested_time": replan_departure_time,
+    }
+
+    logger.info(
+        "Booking %s: replanning %r -> %r from %s (now + %d min eta + %d min ride), "
+        "deadline=%r optimise_for=%r",
+        booking.booking_ref, booking.dropoff, final_destination, replan_departure_time,
+        booking.eta_min, booking.ride_duration_min,
+        onward_intent.get("expected_arrival_time"), onward_intent.get("optimise_for"),
+    )
+
+    try:
+        onward_state = run_commute_agent_from_intent(onward_intent)
+    except Exception as exc:
+        logger.exception("Onward replan failed after booking %s", booking.booking_ref)
+        return BookingResponse(
+            booking=SimulatedBookingOut(**booking.to_dict()),
+            session_id=session.session_id,
+            replanned=False,
+            replan_departure_time=replan_departure_time,
+            replan_offset_min=booking.arrival_offset_min(),
+            final_destination=final_destination,
+            booked_segments=sorted(booked),
+            message=(
+                f"Simulated ride booked. I couldn't plan the onward journey from "
+                f"{booking.dropoff} just now — the booking above still stands."
+            ),
+            detail=str(exc),
+        )
+
+    onward_state = _strip_booked_ride_offers(onward_state, booked)
+
+    return BookingResponse(
+        booking=SimulatedBookingOut(**booking.to_dict()),
+        session_id=session.session_id,
+        replanned=True,
+        replan_departure_time=replan_departure_time,
+        replan_offset_min=booking.arrival_offset_min(),
+        final_destination=final_destination,
+        onward_plan=AgentResponse.from_state(onward_state),
+        booked_segments=sorted(booked),
+        message=(
+            f"Simulated ride booked from {booking.pickup} to {booking.dropoff}. "
+            f"Pickup in {booking.eta_min} min, about {booking.ride_duration_min} min in the "
+            f"vehicle — so the onward journey to {final_destination} is planned from "
+            f"{replan_departure_time}."
+        ),
     )
 
 

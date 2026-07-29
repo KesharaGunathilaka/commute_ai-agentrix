@@ -204,6 +204,78 @@ export interface RideQuote {
   eta_min?: number;
   available: boolean;
   currency?: string;
+  distance_km?: number;
+  /** Always true — ride_service.py is a dummy. Set by the backend. */
+  simulated?: boolean;
+  disclaimer?: string;
+  source?: string | null;
+  verified?: boolean;
+}
+
+/** One bookable vehicle class for a segment. */
+export interface RideClassOption {
+  ride_class: string;
+  label: string;
+  available: boolean;
+  price?: number | null;
+  eta_min?: number | null;
+  distance_km?: number | null;
+  currency: string;
+  simulated: boolean;
+  disclaimer: string;
+}
+
+export interface RideClassOptions {
+  pickup: string;
+  dropoff: string;
+  options: RideClassOption[];
+  /** This session already booked this exact segment — hide the action. */
+  already_booked: boolean;
+  simulated: boolean;
+  disclaimer: string;
+}
+
+/**
+ * A booking that is not a booking.
+ *
+ * `simulated` and `disclaimer` come from the backend, not from this client.
+ * Rendering this without the badge would present a fabricated price and ETA
+ * as a completed commercial transaction.
+ */
+export interface SimulatedBooking {
+  booking_ref: string;
+  pickup: string;
+  dropoff: string;
+  ride_class: string;
+  ride_class_label: string;
+  /** Minutes until the ride reaches the pickup point. */
+  eta_min: number;
+  /** Minutes in the vehicle. */
+  ride_duration_min: number;
+  price: number;
+  currency: string;
+  distance_km: number;
+  booked_at: string;
+  simulated: boolean;
+  disclaimer: string;
+  source?: string | null;
+  verified?: boolean;
+}
+
+export interface BookingResponse {
+  booking: SimulatedBooking;
+  session_id: string;
+  /** Drop-off is the final destination — nothing left to plan. */
+  terminal: boolean;
+  replanned: boolean;
+  /** HH:MM the onward journey was planned from: booking + eta + ride. */
+  replan_departure_time?: string | null;
+  replan_offset_min: number;
+  final_destination?: string | null;
+  onward_plan?: AgentState | null;
+  booked_segments: string[];
+  message: string;
+  detail?: string;
 }
 
 export interface AgentState {
@@ -293,4 +365,8 @@ export interface ChatMessage {
   /** Trace captured live during streaming, kept for replay after the run. */
   trace?: string[];
   error?: boolean;
+  /** Set on a booking turn — rendered above `state`, which is the onward plan. */
+  booking?: SimulatedBooking | null;
+  /** HH:MM the onward plan departs from: booking time + eta + ride duration. */
+  replanFrom?: string | null;
 }

@@ -84,8 +84,18 @@ class Quote:
     always populated — it's "time until pickup", not trip length)."""
 
 
+SIMULATION_NOTICE = "Simulated quote · production requires PickMe/Uber partner API."
+
+
 def quote_to_dict(q: Quote) -> dict:
-    """JSON-friendly view handed to the LLM as a tool result."""
+    """JSON-friendly view handed to the LLM as a tool result.
+
+    `simulated` and `disclaimer` are set here, at the point the fabricated
+    numbers are made, rather than by whatever renders them. The price above is
+    derived from `rng.uniform` distance and a `rng.choice` surge, and the
+    availability flag is a coin flip — every consumer needs to know that, and
+    a flag added downstream is one a new consumer can forget to add.
+    """
     return {
         "quote_id": q.quote_id,
         "vehicle_type": q.label,
@@ -96,6 +106,10 @@ def quote_to_dict(q: Quote) -> dict:
         "eta_min": q.eta_min if q.available else None,
         "trip_duration_min": q.trip_duration_min if q.available else None,
         "surge_multiplier": q.surge,
+        "simulated": True,
+        "disclaimer": SIMULATION_NOTICE,
+        "source": "simulated",
+        "verified": False,
     }
 
 

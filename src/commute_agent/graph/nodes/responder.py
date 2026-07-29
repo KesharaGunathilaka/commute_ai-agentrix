@@ -215,16 +215,34 @@ def _format_plan_variants(variants: list[dict]) -> str:
     return "\n".join(lines)
 
 
+# Ride figures are not merely unverified — they are generated. Distance for an
+# uncurated route is rng.uniform(1.5, 24.0), availability is a coin flip and
+# surge is drawn from a list. The fare path already hedges honestly; presenting
+# these as firm quotes in the same response held two kinds of made-up number to
+# two different standards, which is the whole of audit finding R2.
+_RIDE_SIMULATION_NOTE = (
+    "_Ride prices, ETAs and availability are simulated — this build has no "
+    "PickMe or Uber partner API. Illustrative only, not quotes._"
+)
+
+
+def _ride_line(quote: dict, *, indent: str = "", show_distance: bool = False) -> str:
+    """One ride option, priced as an estimate rather than a quote."""
+    parts = [f"~LKR {quote['price']} (est.)", f"ETA ~{quote['eta_min']} min"]
+    if show_distance and quote.get("distance_km") is not None:
+        parts.append(f"{quote['distance_km']} km")
+    return f"{indent}- {quote['vehicle_type']}: " + " · ".join(parts)
+
+
 def _format_uber_suggestion(quotes: list[dict], origin: str, destination: str) -> str:
     """Format Uber options as readable markdown for the response."""
     lines = [f"**Ride-hailing options from {origin} to {destination}:**"]
     for q in quotes:
         if q.get("available"):
-            lines.append(
-                f"- {q['vehicle_type']}: LKR {q['price']} · ETA {q['eta_min']} min · {q['distance_km']} km"
-            )
+            lines.append(_ride_line(q, show_distance=True))
     if len(lines) == 1:
         lines.append("- No rides available right now.")
+    lines.append(_RIDE_SIMULATION_NOTE)
     return "\n".join(lines)
 
 
@@ -264,16 +282,18 @@ def _format_last_mile_options(
         lines.append(f"2. **Ride-hailing{ride_note}:**")
         for q in quotes:
             if q.get("available"):
-                lines.append(f"   - {q['vehicle_type']}: LKR {q['price']} · ETA {q['eta_min']} min")
+                lines.append(_ride_line(q, indent="   "))
         if len(lines) == 2:
             lines.append("   - No rides available right now.")
+        lines.append(_RIDE_SIMULATION_NOTE)
         return "\n".join(lines)
 
     walk_note = f" ({distance_m / 1000:.1f} km walk)" if distance_m else ""
     lines = [f"**Last-mile ride from {from_stop} to {destination}{walk_note}:**"]
     for q in quotes:
         if q.get("available"):
-            lines.append(f"- {q['vehicle_type']}: LKR {q['price']} · ETA {q['eta_min']} min")
+            lines.append(_ride_line(q))
     if len(lines) == 1:
         lines.append("- No rides available right now.")
+    lines.append(_RIDE_SIMULATION_NOTE)
     return "\n".join(lines)

@@ -47,6 +47,19 @@ class Session:
     """Most recent full AgentState — lets a reconnecting client recover the
     current plan without replanning."""
 
+    bookings: list[dict[str, Any]] = field(default_factory=list)
+    """Simulated ride bookings made during this conversation, oldest first.
+
+    Two jobs. It lets the UI present the journey as "booked leg, then the
+    replanned remainder", and it is the guard against re-offering a ride for a
+    segment already booked — `booking_tool.segment_key` is the identity.
+
+    Deliberately *not* folded into `intent`, `last_planned_intent` or
+    `last_state`: booking a leg does not change what journey the commuter
+    asked for, and the intake state machine's change detection reads those
+    three. Keeping bookings beside them means the conversational flow behaves
+    exactly as it did before this field existed."""
+
     created_at: datetime = field(default_factory=datetime.now)
     updated_at: datetime = field(default_factory=datetime.now)
 

@@ -1,7 +1,8 @@
 "use client";
 
-import { Bike, Bus, Car, Footprints, Train } from "lucide-react";
+import { Bike, Bus, Car, FlaskConical, Footprints, Train } from "lucide-react";
 
+import { ProvenanceBadge } from "@/components/journey/ProvenanceBadge";
 import { Panel, PanelHeader } from "@/components/ui/primitives";
 import type { RideQuote, RouteLeg } from "@/lib/types";
 import { cn, formatDistance, legLabel } from "@/lib/utils";
@@ -43,17 +44,46 @@ function QuoteTile({ quote }: { quote: RideQuote }) {
 
       {quote.available ? (
         <>
+          {/* "~" and "est." because these figures are generated, not quoted:
+              distance for an uncurated route is rng.uniform(1.5, 24.0) and
+              surge is drawn from a list. The fare block on a route card has
+              always hedged; presenting these as firm prices in the same view
+              held two kinds of invented number to two standards. */}
           <p className="tabular mt-1 text-sm font-semibold text-ink-100">
-            {currency} {quote.price ?? "—"}
+            ~{currency} {quote.price ?? "—"}
+            <span className="ml-1 text-[10px] font-normal text-ink-500">est.</span>
           </p>
           {quote.eta_min != null && (
-            <p className="tabular text-[11px] text-signal-400">{quote.eta_min} min away</p>
+            <p className="tabular text-[11px] text-signal-400">~{quote.eta_min} min away</p>
           )}
         </>
       ) : (
         <p className="mt-1 text-xs text-ink-500">Unavailable</p>
       )}
     </div>
+  );
+}
+
+/**
+ * The simulation notice for a set of ride quotes.
+ *
+ * Driven by the backend's own `simulated` flag rather than assumed here, so
+ * the day a real partner API is wired in the notice disappears on its own
+ * instead of lingering as a lie in the other direction.
+ */
+function SimulationNote({ quotes }: { quotes: RideQuote[] }) {
+  const simulated = quotes.find((quote) => quote.simulated);
+  if (!simulated) return null;
+
+  return (
+    <p className="mt-2.5 flex items-start gap-1.5 rounded-lg border border-glow-400/25 bg-glow-400/8 px-2.5 py-1.5 text-[10px] leading-relaxed text-glow-400">
+      <FlaskConical className="mt-px size-3 shrink-0" />
+      <span>
+        {simulated.disclaimer ||
+          "Simulated quote · production requires PickMe/Uber partner API."}{" "}
+        Prices, ETAs and availability are generated, not quoted.
+      </span>
+    </p>
   );
 }
 
@@ -83,6 +113,7 @@ export function RideOptions({
           <QuoteTile key={`${quote.vehicle_type}-${index}`} quote={quote} />
         ))}
       </div>
+      <SimulationNote quotes={quotes} />
     </Panel>
   );
 }
@@ -113,6 +144,11 @@ function TransitLegCard({ leg }: { leg: RouteLeg }) {
       {leg.distance_m ? (
         <p className="mt-1 text-[11px] text-ink-500">{formatDistance(leg.distance_m)} by road</p>
       ) : null}
+      <ProvenanceBadge
+        provenance={leg}
+        prefix={isTrain ? "Train" : "Bus"}
+        className="mt-1.5"
+      />
     </div>
   );
 }
@@ -155,6 +191,8 @@ export function LastMileOptions({
           <QuoteTile key={`${quote.vehicle_type}-${index}`} quote={quote} />
         ))}
       </div>
+
+      <SimulationNote quotes={quotes ?? []} />
 
       {!transitLeg && gap && (
         <p className="mt-2.5 text-[11px] text-ink-500">

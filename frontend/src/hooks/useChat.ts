@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import { resetSession, streamChat } from "@/lib/api";
+import { resetSession, simulateBooking, streamChat } from "@/lib/api";
 import type { ChatMessage, JourneySummary, NodeEvent } from "@/lib/types";
 import { uid } from "@/lib/utils";
 
@@ -118,6 +118,55 @@ export function useChat() {
     [busy, rememberSession],
   );
 
+  /**
+   * Book a simulated ride for one leg and append the result to the transcript.
+   *
+   * The response carries the booking *and* the replanned remainder, so both
+   * land in a single assistant message: the booked leg, then the onward plan
+   * rendered by the same JourneyPlan component as any other plan. Nothing
+   * about the existing chat state machine is touched — a booking does not
+   * change what journey was asked for, so `journey` stays as it was.
+   */
+  const bookRide = useCallback(
+    async (pickup: string, dropoff: string, rideClass: string) => {
+      const id = sessionId.current;
+      if (!id || busy) return;
+
+      setBusy(true);
+      try {
+        const result = await simulateBooking({ sessionId: id, pickup, dropoff, rideClass });
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: uid(),
+            role: "assistant",
+            text: result.message,
+            textEn: result.message,
+            kind: "plan",
+            booking: result.booking,
+            replanFrom: result.replan_departure_time ?? null,
+            state: result.onward_plan ?? null,
+            trace: result.onward_plan?.trace,
+          },
+        ]);
+      } catch (error) {
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: uid(),
+            role: "assistant",
+            text: error instanceof Error ? error.message : "Couldn't book that ride.",
+            kind: "error",
+            error: true,
+          },
+        ]);
+      } finally {
+        setBusy(false);
+      }
+    },
+    [busy],
+  );
+
   const startNewJourney = useCallback(async () => {
     abortRef.current?.();
     abortRef.current = null;
@@ -138,5 +187,5 @@ export function useChat() {
     }
   }, []);
 
-  return { messages, journey, run, busy, send, startNewJourney };
+  return { messages, journey, run, busy, send, bookRide, startNewJourney, sessionId };
 }

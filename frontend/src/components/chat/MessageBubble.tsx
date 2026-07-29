@@ -6,6 +6,7 @@ import { useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
+import { BookingCard } from "@/components/journey/BookingCard";
 import { JourneyPlan } from "@/components/journey/JourneyPlan";
 import { Button } from "@/components/ui/primitives";
 import type { ChatMessage } from "@/lib/types";
@@ -135,9 +136,14 @@ export function MessageBubble({
         </div>
       </div>
 
-      {message.state && (
-        <div className="pl-10">
-          <JourneyPlan state={message.state} mapsKey={mapsKey} />
+      {/* A booking turn reads top to bottom as the journey now stands: the
+          booked ride leg first, then the plan for what follows it. */}
+      {(message.booking || message.state) && (
+        <div className="space-y-3 pl-10">
+          {message.booking && (
+            <BookingCard booking={message.booking} replanFrom={message.replanFrom} />
+          )}
+          {message.state && <JourneyPlan state={message.state} mapsKey={mapsKey} />}
         </div>
       )}
     </motion.div>

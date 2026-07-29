@@ -8,7 +8,14 @@
  * trace entirely.
  */
 
-import type { BackendConfig, ChatResponse, DisruptionRecord, NodeEvent } from "./types";
+import type {
+  BackendConfig,
+  BookingResponse,
+  ChatResponse,
+  DisruptionRecord,
+  NodeEvent,
+  RideClassOptions,
+} from "./types";
 
 export const API_BASE =
   process.env.NEXT_PUBLIC_API_BASE?.replace(/\/$/, "") ?? "http://localhost:8000";
@@ -77,6 +84,47 @@ export async function fetchSpeech(text: string, lang = "en"): Promise<string> {
   });
   if (!res.ok) throw await toApiError(res);
   return URL.createObjectURL(await res.blob());
+}
+
+/**
+ * Vehicle classes bookable for one segment, with simulated prices.
+ *
+ * Fetched before showing the picker so only classes that will succeed are
+ * offered — the dummy backend marks some unavailable per segment, and letting
+ * the commuter pick one and then fail would turn one tap into two.
+ */
+export function fetchBookingOptions(
+  pickup: string,
+  dropoff: string,
+  sessionId?: string | null,
+): Promise<RideClassOptions> {
+  const params = new URLSearchParams({ pickup, dropoff });
+  if (sessionId) params.set("session_id", sessionId);
+  return getJson<RideClassOptions>(`/booking/options?${params}`);
+}
+
+/**
+ * Book a simulated ride and get the replanned remainder of the journey.
+ *
+ * Nothing is booked. The response's `simulated` flag and `disclaimer` come
+ * from the server and must be rendered — see BookingCard.
+ */
+export function simulateBooking(input: {
+  sessionId: string;
+  pickup: string;
+  dropoff: string;
+  rideClass: string;
+}): Promise<BookingResponse> {
+  return getJson<BookingResponse>("/booking/simulate", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      session_id: input.sessionId,
+      pickup: input.pickup,
+      dropoff: input.dropoff,
+      ride_class: input.rideClass,
+    }),
+  });
 }
 
 export interface StreamHandlers {
