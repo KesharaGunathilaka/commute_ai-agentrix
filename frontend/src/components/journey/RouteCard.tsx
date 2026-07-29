@@ -2,6 +2,7 @@
 
 import { ArrowRight, Bus, Clock, Footprints, Repeat, Ticket, Train } from "lucide-react";
 
+import { ProvenanceBadge, RouteProvenance } from "@/components/journey/ProvenanceBadge";
 import { Badge, Panel, TimeChip } from "@/components/ui/primitives";
 import type { FareEstimate, Route } from "@/lib/types";
 import {
@@ -62,6 +63,8 @@ function FareBlock({ fare }: { fare: FareEstimate }) {
         Estimated from {fare.distance_km} km
         {fare.verified ? " using published rates." : " — rates unverified, treat as a guide."}
       </p>
+
+      <ProvenanceBadge provenance={fare} prefix="Fare" className="mt-1.5" />
     </div>
   );
 }
@@ -171,6 +174,8 @@ export function RouteCard({
         </div>
       </div>
 
+      <RouteProvenance route={route} className="mt-2.5" />
+
       {route.fare_estimate && <FareBlock fare={route.fare_estimate} />}
 
       {/* Per-leg boarding instructions. */}
@@ -192,6 +197,14 @@ export function RouteCard({
                     <span className="tabular text-ink-300">{leg.arrival}</span>{" "}
                     {leg.alight_stop}
                   </p>
+                  {/* Per leg, not per route: a journey can mix a leg whose
+                      times came from Maps with one the local timetable
+                      replaced, and one badge for the pair would hide that. */}
+                  <ProvenanceBadge
+                    provenance={leg}
+                    prefix={leg.mode === "train" ? "Train" : "Bus"}
+                    className="mt-1"
+                  />
                 </div>
                 {legs.length > 1 && index < legs.length - 1 && (
                   <Repeat className="mt-1 size-3 shrink-0 text-ink-700" />

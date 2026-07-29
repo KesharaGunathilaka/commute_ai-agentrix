@@ -152,6 +152,10 @@ def estimate_fare(route: dict) -> Optional[dict]:
         "estimated": True,
         "verified": verified,
         "source": config.get("source", ""),
+        # When the rate table was last looked at. `fares.json` records this as
+        # `last_reviewed`, and its most recent review concluded the rates are
+        # still unverified — so this dates the review, not any validation.
+        "captured_date": config.get("last_reviewed") or None,
     }
 
 

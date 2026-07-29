@@ -11,6 +11,22 @@ class QueryRequest(BaseModel):
     user_query: str = Field(..., min_length=1, max_length=500)
 
 
+class Provenance(BaseModel):
+    """Where a value came from and whether anyone checked it.
+
+    Carried on routes, on individual legs, and on fare estimates. Documented
+    here as a type even though routes travel the wire as `dict[str, Any]`, so
+    a client has one place to read the contract from.
+
+    `verified` is a claim about validation done in this repository, not about
+    the upstream feed's own quality — see `domain/provenance.py`.
+    """
+
+    source: Optional[str] = None
+    verified: bool = False
+    captured_date: Optional[str] = None
+
+
 class AgentResponse(BaseModel):
     """The full agent state, flattened for the wire.
 

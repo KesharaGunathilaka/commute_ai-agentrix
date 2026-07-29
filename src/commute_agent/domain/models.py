@@ -60,6 +60,24 @@ class RouteOption(BaseModel):
     from. Always an ESTIMATE (see tools/fare_tool.py); None when no defensible
     estimate exists, which callers must treat as "unknown", never as free."""
 
+    # ── Provenance (see domain/provenance.py) ────────────────────────────────
+    # All three default, so every existing construction site keeps working and
+    # an unstamped route reads as "source unknown, unverified" — the safe way
+    # round. Legs carry the same three keys individually, because a journey
+    # can mix a Maps-sourced leg with one whose times came from local data.
+
+    source: Optional[str] = None
+    """Which dataset or API these times came from — "google_maps",
+    "local_timetable", "simulated", and so on. None means unrecorded."""
+
+    verified: bool = False
+    """Whether this source has been checked against a published authority *by
+    this project*. False for everything shipped today; see the audit's Part 7."""
+
+    captured_date: Optional[str] = None
+    """ISO date the local data behind these times was captured. None for live
+    sources, and for local data that recorded no capture date."""
+
     @property
     def origin(self) -> str:
         return self.stops[0]

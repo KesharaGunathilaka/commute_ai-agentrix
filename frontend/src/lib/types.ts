@@ -32,7 +32,34 @@ export interface StopCoord {
   lng?: number;
 }
 
-export interface RouteLeg {
+/**
+ * Where a value came from and whether anyone checked it.
+ *
+ * Mirrors `commute_agent/domain/provenance.py`. Every field is optional: an
+ * older payload, or a value nobody stamped, reads as "source unrecorded,
+ * unverified" — which is the honest default, not a rendering bug.
+ *
+ * `verified` means *this project* checked the source against a published
+ * authority. It is false across the board on the data shipped today.
+ */
+export interface Provenance {
+  source?: string | null;
+  verified?: boolean;
+  /** ISO date the local data was captured. Null for live sources. */
+  captured_date?: string | null;
+}
+
+/** Recorded whenever local data replaces a Google Maps value. */
+export interface ProvenanceOverride {
+  fields: string[];
+  replaced_source: string;
+  new_source: string;
+  timetable_route_name?: string;
+  previous_departure_times?: string[];
+  previous_arrival_times?: string[];
+}
+
+export interface RouteLeg extends Provenance {
   mode: TransitMode;
   line: string;
   /** Public route number, e.g. "138". Empty for most rail lines. */
@@ -70,7 +97,7 @@ export interface FareClass {
  * carries how wrong the underlying rate table might be. They are separate
  * fields on purpose and must not be merged into a single displayed range.
  */
-export interface FareEstimate {
+export interface FareEstimate extends Provenance {
   currency: string;
   /** Cheapest class — the headline figure and the cost-ranking key. */
   amount: number;
@@ -85,7 +112,7 @@ export interface FareEstimate {
   source?: string;
 }
 
-export interface Route {
+export interface Route extends Provenance {
   route_id: string;
   line: string;
   stops: string[];
@@ -105,6 +132,8 @@ export interface Route {
   bounds?: RouteBounds | null;
   /** Null when no defensible estimate exists — treat as unknown, never free. */
   fare_estimate?: FareEstimate | null;
+  /** Present when local data replaced this route's Maps-sourced times. */
+  _provenance_override?: ProvenanceOverride | null;
 }
 
 export interface DisruptionRecord {

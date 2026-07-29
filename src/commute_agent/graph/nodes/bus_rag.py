@@ -27,6 +27,11 @@ from typing import Optional
 
 from commute_agent.core.logging import get_logger
 from commute_agent.domain.enums import TransitMode
+from commute_agent.domain.provenance import (
+    SOURCE_GOOGLE_MAPS,
+    SOURCE_LOCAL_TIMETABLE,
+    provenance,
+)
 from commute_agent.graph.state import AgentState
 from commute_agent.rag.retrieval import retrieve_bus_timetable
 
@@ -211,6 +216,25 @@ def bus_rag_node(state: AgentState) -> AgentState:
         updated["arrival_times"] = [arrival] if arrival else route.get("arrival_times", [])
         updated["_timetable_route_name"] = entry.get("route_name", "")
         updated["_journey_time_minutes"] = journey_mins
+
+        # This branch replaces Google Maps times with curated ones, so the
+        # route's headline times are no longer Maps-sourced and must not keep
+        # claiming to be. `legs` is deliberately left alone: those times were
+        # not touched, and re-stamping them would attribute Maps data to a
+        # source it didn't come from.
+        #
+        # The previous values are kept rather than discarded. R1 happened
+        # because an override left nothing behind to compare against, so the
+        # substitution was invisible and unrecoverable.
+        updated.update(provenance(SOURCE_LOCAL_TIMETABLE))
+        updated["_provenance_override"] = {
+            "fields": ["departure_times", "arrival_times"],
+            "replaced_source": route.get("source") or SOURCE_GOOGLE_MAPS,
+            "new_source": SOURCE_LOCAL_TIMETABLE,
+            "timetable_route_name": entry.get("route_name", ""),
+            "previous_departure_times": route.get("departure_times", []),
+            "previous_arrival_times": route.get("arrival_times", []),
+        }
 
         logger.info(
             "[%s] Enriched bus route %r: dep=%s arr=%s (%d min)",

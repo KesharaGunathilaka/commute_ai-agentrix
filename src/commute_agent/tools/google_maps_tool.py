@@ -17,6 +17,7 @@ from commute_agent.core.exceptions import RouteNotFoundError
 from commute_agent.core.logging import get_logger
 from commute_agent.domain.enums import TransitMode
 from commute_agent.domain.models import RouteOption
+from commute_agent.domain.provenance import SOURCE_GOOGLE_MAPS, provenance
 
 logger = get_logger(__name__)
 
@@ -159,6 +160,10 @@ def _extract_route(gmaps_route: dict, route_idx: int) -> Optional[RouteOption]:
                 "departure": dep_hhmm,
                 "arrival": arr_hhmm,
                 "distance_m": step.get("distance", {}).get("value", 0),
+                # Stamped at the origin of the data, per leg, so that a later
+                # node replacing one leg's times with local data leaves the
+                # other legs still correctly attributed to Maps.
+                **provenance(SOURCE_GOOGLE_MAPS),
                 # Per-leg geometry, so the frontend can colour one leg
                 # differently from the rest — that's how a disrupted segment
                 # gets highlighted without redrawing the whole route.
@@ -193,6 +198,10 @@ def _extract_route(gmaps_route: dict, route_idx: int) -> Optional[RouteOption]:
         polyline=gmaps_route.get("overview_polyline", {}).get("points"),
         stop_coords=stop_coords,
         bounds=_extract_bounds(gmaps_route),
+        # Live routing, and the best times the system has — but nobody here
+        # has checked them against a published SLR or NTC timetable, so this
+        # is unverified. captured_date stays None: there is nothing to capture.
+        **provenance(SOURCE_GOOGLE_MAPS),
     )
 
 
