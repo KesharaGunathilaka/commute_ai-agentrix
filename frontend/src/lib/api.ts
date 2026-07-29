@@ -97,9 +97,12 @@ export function fetchBookingOptions(
   pickup: string,
   dropoff: string,
   sessionId?: string | null,
+  /** The leg's Maps road distance, so prices and the scope guard are real. */
+  legDistanceM?: number | null,
 ): Promise<RideClassOptions> {
   const params = new URLSearchParams({ pickup, dropoff });
   if (sessionId) params.set("session_id", sessionId);
+  if (legDistanceM != null) params.set("leg_distance_m", String(Math.round(legDistanceM)));
   return getJson<RideClassOptions>(`/booking/options?${params}`);
 }
 
@@ -114,6 +117,9 @@ export function simulateBooking(input: {
   pickup: string;
   dropoff: string;
   rideClass: string;
+  /** The leg's Maps road distance. Drives the real ride duration, which the
+   *  onward journey's departure time is computed from — not cosmetic. */
+  legDistanceM?: number | null;
 }): Promise<BookingResponse> {
   return getJson<BookingResponse>("/booking/simulate", {
     method: "POST",
@@ -123,6 +129,8 @@ export function simulateBooking(input: {
       pickup: input.pickup,
       dropoff: input.dropoff,
       ride_class: input.rideClass,
+      leg_distance_m:
+        input.legDistanceM != null ? Math.round(input.legDistanceM) : null,
     }),
   });
 }

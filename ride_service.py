@@ -137,11 +137,25 @@ class RideService:
     # public surface 
 
     def get_estimates(
-        self, pickup: str, dropoff: str, vehicle_type: Optional[str] = None
+        self,
+        pickup: str,
+        dropoff: str,
+        vehicle_type: Optional[str] = None,
+        distance_km: Optional[float] = None,
     ) -> list[Quote]:
         """Return quotes for the requested vehicle type, or all types if omitted.
 
         Raises ValueError if a vehicle_type is given but not recognised.
+
+        `distance_km` lets a caller supply a REAL distance — Google Maps records
+        one per transit leg — instead of letting this dummy invent one. Without
+        it a 119 km leg can be quoted as a 7.3 km trip, because the fallback is
+        `rng.uniform(1.5, 24.0)`. That matters beyond the price: trip duration
+        is derived from distance, and the booking flow plans the onward journey
+        from `now + eta + ride_duration`, so a random distance silently produces
+        a wrong departure time for the rest of the trip.
+
+        Optional and defaulted, so every existing call site is unaffected.
         """
         if vehicle_type:
             canonical = normalize_vehicle(vehicle_type)
@@ -154,8 +168,13 @@ class RideService:
             types = list(VEHICLES)
 
         curated = _match_curated_route(pickup, dropoff)
-        distance = curated["distance_km"] if curated else self._distance_km(pickup, dropoff)
-        trip_duration = curated.get("typical_duration_min") if curated else None
+        if distance_km is not None:
+            # A real measured distance beats both the curated table and the RNG.
+            distance = round(float(distance_km), 1)
+            trip_duration = curated.get("typical_duration_min") if curated else None
+        else:
+            distance = curated["distance_km"] if curated else self._distance_km(pickup, dropoff)
+            trip_duration = curated.get("typical_duration_min") if curated else None
 
         quotes: list[Quote] = []
         for vt in types:

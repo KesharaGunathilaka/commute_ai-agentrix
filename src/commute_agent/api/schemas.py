@@ -234,6 +234,15 @@ class BookingRequest(BaseModel):
     ride_class: str = Field(default="tuk", max_length=32)
     """bike | tuk | car, or any synonym ride_service.normalize_vehicle knows."""
 
+    leg_distance_m: Optional[int] = Field(default=None, ge=0)
+    """The leg's road distance from Google Maps, when the caller knows it.
+
+    Optional and defaulted, so older clients keep working. Supplying it makes
+    the price and — more importantly — the ride duration real, and the ride
+    duration is what the onward journey's departure time is computed from.
+    It also drives the mis-scoping warning, which cannot be judged from the
+    simulated quote's own distance because that is randomly generated."""
+
 
 class RideClassOption(BaseModel):
     """One bookable vehicle class for a segment, with its simulated price."""
@@ -264,6 +273,10 @@ class RideClassOptions(BaseModel):
     already_booked: bool = False
     """True when this session has already booked this exact segment. The UI
     hides the action rather than offering the same ride twice."""
+
+    scope_warning: Optional[str] = None
+    """Set when the segment looks mis-scoped — a leg long enough that booking
+    it as a taxi is probably not what was meant. Shown, not enforced."""
 
     simulated: bool = True
     disclaimer: str = ""
@@ -328,6 +341,10 @@ class BookingResponse(BaseModel):
     booked_segments: list[str] = Field(default_factory=list)
     """Normalised keys of every segment booked in this session. The UI hides
     the book action for these, so a segment can't be offered twice."""
+
+    scope_warning: Optional[str] = None
+    """Set when the booked leg was long enough to look like a scoping mistake.
+    The booking still completes — this reports, it does not block."""
 
     message: str = ""
     detail: str = ""

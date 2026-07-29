@@ -128,19 +128,30 @@ export function useChat() {
    * change what journey was asked for, so `journey` stays as it was.
    */
   const bookRide = useCallback(
-    async (pickup: string, dropoff: string, rideClass: string) => {
+    async (
+      pickup: string,
+      dropoff: string,
+      rideClass: string,
+      legDistanceM?: number | null,
+    ) => {
       const id = sessionId.current;
       if (!id || busy) return;
 
       setBusy(true);
       try {
-        const result = await simulateBooking({ sessionId: id, pickup, dropoff, rideClass });
+        const result = await simulateBooking({
+          sessionId: id, pickup, dropoff, rideClass, legDistanceM,
+        });
         setMessages((prev) => [
           ...prev,
           {
             id: uid(),
             role: "assistant",
-            text: result.message,
+            // The scope warning leads: if a 119 km "ride" was just booked, that
+            // is the first thing worth reading, not the confirmation.
+            text: result.scope_warning
+              ? `⚠️ ${result.scope_warning}\n\n${result.message}`
+              : result.message,
             textEn: result.message,
             kind: "plan",
             booking: result.booking,

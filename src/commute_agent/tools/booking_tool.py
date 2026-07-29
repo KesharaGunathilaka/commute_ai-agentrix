@@ -49,6 +49,30 @@ DISCLAIMER = "Simulated booking · production requires PickMe/Uber partner API."
 # assumption rather than appearing from nowhere.
 _ASSUMED_AVG_SPEED_KMH = 24.0
 
+# Past this, a "ride" is almost certainly a scoping mistake rather than a
+# journey anyone would take by tuk-tuk. A booking is meant to replace ONE leg;
+# when the recommended route is a single direct train, that leg is the whole
+# 119 km corridor, and quoting it as a taxi is absurd. Surfaced rather than
+# blocked — the commuter may genuinely want a long car trip, but they should be
+# told what they are about to book.
+LONG_RIDE_WARNING_KM = 30.0
+
+
+def scope_warning(distance_km: Optional[float]) -> Optional[str]:
+    """A warning string when a ride looks mis-scoped, else None.
+
+    Judged on the leg's real road distance from Google Maps, never on the
+    simulated quote's own distance: for an uncurated route that figure is
+    `rng.uniform(1.5, 24.0)` and would wave a 119 km leg straight through a
+    30 km threshold.
+    """
+    if distance_km is None or distance_km <= LONG_RIDE_WARNING_KM:
+        return None
+    return (
+        f"This ride covers {distance_km:.0f} km — the whole leg, not a short hop. "
+        f"Rides are meant to replace one segment; check you picked the leg you meant."
+    )
+
 
 class RideUnavailableError(Exception):
     """The requested class isn't available. Carries what is."""
@@ -106,17 +130,27 @@ class SimulatedBooking:
         return asdict(self)
 
 
-def ride_class_options(pickup: str, dropoff: str) -> list[dict[str, Any]]:
+def ride_class_options(
+    pickup: str,
+    dropoff: str,
+    distance_km: Optional[float] = None,
+) -> list[dict[str, Any]]:
     """Every vehicle class for a segment, with availability and price.
 
     Lets the UI offer only what will succeed, so booking stays a single tap
     instead of a pick-then-fail. Deterministic for a given segment: the dummy
     seeds its RNG from the pickup and drop-off strings, so the same leg always
     reports the same availability within a run.
+
+    `distance_km` is the leg's real Maps road distance when the caller knows it,
+    so the prices shown before booking match the ride actually being booked.
     """
     from ride_service import RideService, VEHICLES  # noqa: PLC0415
 
-    quotes = {q.vehicle_type: q for q in RideService().get_estimates(pickup, dropoff)}
+    quotes = {
+        q.vehicle_type: q
+        for q in RideService().get_estimates(pickup, dropoff, distance_km=distance_km)
+    }
     return [
         {
             "ride_class": key,
@@ -155,6 +189,7 @@ def simulate_booking(
     dropoff: str,
     ride_class: str,
     now: Optional[datetime] = None,
+    distance_km: Optional[float] = None,
 ) -> SimulatedBooking:
     """
     Produce a simulated booking for one segment.
@@ -165,6 +200,12 @@ def simulate_booking(
 
     `now` is injectable so the time arithmetic can be tested against a fixed
     clock rather than the wall clock.
+
+    `distance_km` should be the leg's real Maps road distance whenever the
+    caller has it. It is not cosmetic: `ride_duration_min` is derived from
+    distance, and the onward journey is planned from
+    `now + eta_min + ride_duration_min`, so a fabricated distance produces a
+    wrong departure time for the rest of the trip.
     """
     from ride_service import RideService, normalize_vehicle  # noqa: PLC0415
 
@@ -175,7 +216,7 @@ def simulate_booking(
         )
 
     service = RideService()
-    all_quotes = service.get_estimates(pickup, dropoff)
+    all_quotes = service.get_estimates(pickup, dropoff, distance_km=distance_km)
     quote = next((q for q in all_quotes if q.vehicle_type == canonical), None)
 
     if quote is None or not quote.available:

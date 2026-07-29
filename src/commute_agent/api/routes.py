@@ -39,6 +39,7 @@ from commute_agent.tools.booking_tool import (
     UnknownRideClassError,
     ride_class_options,
     same_place,
+    scope_warning,
     segment_key,
     simulate_booking,
 )
@@ -340,6 +341,7 @@ async def booking_options(
     pickup: str = Query(..., min_length=1, max_length=200),
     dropoff: str = Query(..., min_length=1, max_length=200),
     session_id: Optional[str] = Query(default=None),
+    leg_distance_m: Optional[int] = Query(default=None, ge=0),
 ) -> RideClassOptions:
     """What can be booked for one segment, with simulated prices.
 
@@ -357,11 +359,23 @@ async def booking_options(
         session = get_store().get_or_create(session_id)
         booked = {b["segment_key"] for b in session.bookings}
 
+    distance_km = leg_distance_m / 1000 if leg_distance_m else None
+    warning = scope_warning(distance_km)
+    if warning:
+        logger.warning(
+            "Booking options for a %.1f km segment %r -> %r — probable mis-scoping.",
+            distance_km, pickup, dropoff,
+        )
+
     return RideClassOptions(
         pickup=pickup,
         dropoff=dropoff,
-        options=[RideClassOption(**option) for option in ride_class_options(pickup, dropoff)],
+        options=[
+            RideClassOption(**option)
+            for option in ride_class_options(pickup, dropoff, distance_km=distance_km)
+        ],
         already_booked=segment_key(pickup, dropoff) in booked,
+        scope_warning=warning,
         disclaimer=BOOKING_DISCLAIMER,
     )
 
@@ -397,8 +411,22 @@ async def simulate_ride_booking(body: BookingRequest) -> BookingResponse:
     """
     session = get_store().get_or_create(body.session_id)
 
+    # Judged on the leg's real Maps distance, never on the simulated quote's
+    # own — that one is rng.uniform(1.5, 24.0) for an uncurated route and would
+    # pass a 119 km leg straight through a 30 km threshold.
+    leg_km = body.leg_distance_m / 1000 if body.leg_distance_m else None
+    warning = scope_warning(leg_km)
+    if warning:
+        logger.warning(
+            "Simulated booking scoped to a %.1f km segment %r -> %r — this looks "
+            "like a whole journey rather than one leg.",
+            leg_km, body.pickup, body.dropoff,
+        )
+
     try:
-        booking = simulate_booking(body.pickup, body.dropoff, body.ride_class)
+        booking = simulate_booking(
+            body.pickup, body.dropoff, body.ride_class, distance_km=leg_km
+        )
     except UnknownRideClassError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except RideUnavailableError as exc:
@@ -432,6 +460,7 @@ async def simulate_ride_booking(body: BookingRequest) -> BookingResponse:
             terminal=True,
             final_destination=final_destination,
             booked_segments=sorted(booked),
+            scope_warning=warning,
             message=(
                 f"Simulated ride booked to {booking.dropoff}, which is your destination — "
                 "nothing further to plan."
@@ -470,6 +499,7 @@ async def simulate_ride_booking(body: BookingRequest) -> BookingResponse:
             replan_offset_min=booking.arrival_offset_min(),
             final_destination=final_destination,
             booked_segments=sorted(booked),
+            scope_warning=warning,
             message=(
                 f"Simulated ride booked. I couldn't plan the onward journey from "
                 f"{booking.dropoff} just now — the booking above still stands."
@@ -488,6 +518,7 @@ async def simulate_ride_booking(body: BookingRequest) -> BookingResponse:
         final_destination=final_destination,
         onward_plan=AgentResponse.from_state(onward_state),
         booked_segments=sorted(booked),
+            scope_warning=warning,
         message=(
             f"Simulated ride booked from {booking.pickup} to {booking.dropoff}. "
             f"Pickup in {booking.eta_min} min, about {booking.ride_duration_min} min in the "

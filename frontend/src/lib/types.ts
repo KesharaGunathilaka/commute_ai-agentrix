@@ -248,6 +248,12 @@ export interface RideClassOptions {
   options: RideClassOption[];
   /** This session already booked this exact segment — hide the action. */
   already_booked: boolean;
+  /**
+   * Set when the segment looks mis-scoped — long enough that booking it as a
+   * taxi is probably not what was meant. Judged on the leg's real Maps road
+   * distance, not on the simulated quote's own (which is randomly generated).
+   */
+  scope_warning?: string | null;
   simulated: boolean;
   disclaimer: string;
 }
@@ -291,6 +297,9 @@ export interface BookingResponse {
   final_destination?: string | null;
   onward_plan?: AgentState | null;
   booked_segments: string[];
+  /** Set when the booked leg was long enough to look like a scoping mistake.
+   *  Reports; does not block — the booking still completed. */
+  scope_warning?: string | null;
   message: string;
   detail?: string;
 }

@@ -7,7 +7,7 @@ import { useEffect, useMemo, useRef } from "react";
 import { Composer } from "@/components/chat/Composer";
 import { JourneySidebar } from "@/components/chat/JourneySidebar";
 import { MessageBubble } from "@/components/chat/MessageBubble";
-import { BookRide, bookableSegment } from "@/components/journey/BookRide";
+import { BookRide, bookableLegs } from "@/components/journey/BookRide";
 import { AgentTrace } from "@/components/trace/AgentTrace";
 import { useChat } from "@/hooks/useChat";
 import { useReadAloud } from "@/hooks/useReadAloud";
@@ -45,12 +45,13 @@ export function ChatPanel({ mapsKey }: { mapsKey: string }) {
     return last.clarification ?? null;
   }, [messages]);
 
-  // The floating action targets the most recent plan's first leg. Anchoring it
-  // to the latest plan rather than to each card keeps it unambiguous about
-  // which journey it books when the transcript holds several.
+  // The floating action targets the most recent plan. Anchoring it to the
+  // latest plan rather than to each card keeps it unambiguous about which
+  // journey it books when the transcript holds several. It offers that
+  // route's legs — never the journey as a whole.
   const bookable = useMemo(() => {
     const lastPlan = [...messages].reverse().find((m) => m.state?.candidate_route);
-    return bookableSegment(lastPlan?.state?.candidate_route);
+    return bookableLegs(lastPlan?.state?.candidate_route);
   }, [messages]);
 
   return (
@@ -133,13 +134,14 @@ export function ChatPanel({ mapsKey }: { mapsKey: string }) {
         className="lg:sticky lg:top-4 lg:self-start"
       />
 
-      {bookable && (
+      {bookable.length > 0 && (
         <BookRide
-          pickup={bookable.pickup}
-          dropoff={bookable.dropoff}
+          legs={bookable}
           sessionId={sessionId.current}
           busy={busy}
-          onBook={(rideClass) => void bookRide(bookable.pickup, bookable.dropoff, rideClass)}
+          onBook={(leg, rideClass) =>
+            void bookRide(leg.pickup, leg.dropoff, rideClass, leg.distanceM)
+          }
         />
       )}
     </div>
