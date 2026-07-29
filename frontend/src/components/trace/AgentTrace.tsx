@@ -16,6 +16,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 
+import { CollapsibleSection } from "@/components/ui/CollapsibleSection";
 import { Panel, PanelHeader } from "@/components/ui/primitives";
 import { cn } from "@/lib/utils";
 
@@ -62,6 +63,15 @@ export interface AgentTraceProps {
   className?: string;
 }
 
+/**
+ * How the agent reached the answer, step by step.
+ *
+ * The live variant is progress feedback, so it stays open — folding away the
+ * only thing on screen while the commuter waits would leave them staring at
+ * nothing. Once the run finishes the same trace becomes history, and the
+ * summary variant collapses it behind a header.
+ */
+
 export function AgentTrace({
   trace,
   current = null,
@@ -86,26 +96,9 @@ export function AgentTrace({
 
   const looped = replanAttempts > 0;
 
-  return (
-    <Panel className={cn("p-4", className)}>
-      <PanelHeader
-        icon={<RadioTower className="size-3.5" />}
-        title="Agent trace"
-        meta={
-          active ? (
-            <span className="flex items-center gap-1.5 text-[11px] font-semibold text-signal-400">
-              <span className="size-1.5 animate-pulse rounded-full bg-signal-400" />
-              Live
-            </span>
-          ) : (
-            <span className="text-[11px] font-medium text-ink-500">
-              {trace.length} step{trace.length === 1 ? "" : "s"}
-            </span>
-          )
-        }
-      />
-
-      <ol className={cn("mt-3", variant === "summary" ? "space-y-0.5" : "space-y-1")}>
+  const body = (
+    <>
+      <ol className={cn(variant === "summary" ? "space-y-0.5" : "mt-3 space-y-1")}>
         <AnimatePresence initial={false}>
           {steps.map(({ key, node, index, isCurrent }) => {
             const { label, blurb, icon: Icon } = nodeInfo(node);
@@ -181,6 +174,56 @@ export function AgentTrace({
           {disruptionLevel ?? "disruption"}.
         </p>
       )}
+    </>
+  );
+
+  // History: folded away, with the step count — and any replan loop, the one
+  // thing in here worth interrupting a reader for — left visible on the header.
+  if (variant === "summary") {
+    return (
+      <CollapsibleSection
+        icon={<RadioTower className="size-3.5" />}
+        title="Agent trace"
+        meta={
+          <>
+            {looped && (
+              <span className="font-semibold text-glow-400">
+                replanned {replanAttempts}×
+              </span>
+            )}
+            <span>
+              {trace.length} step{trace.length === 1 ? "" : "s"}
+            </span>
+          </>
+        }
+        className={className}
+        bodyClassName="border-t border-console-700/50 px-4 pt-3 pb-4"
+      >
+        {body}
+      </CollapsibleSection>
+    );
+  }
+
+  return (
+    <Panel className={cn("p-4", className)}>
+      <PanelHeader
+        icon={<RadioTower className="size-3.5" />}
+        title="Agent trace"
+        meta={
+          active ? (
+            <span className="flex items-center gap-1.5 text-[11px] font-semibold text-signal-400">
+              <span className="size-1.5 animate-pulse rounded-full bg-signal-400" />
+              Live
+            </span>
+          ) : (
+            <span className="text-[11px] font-medium text-ink-500">
+              {trace.length} step{trace.length === 1 ? "" : "s"}
+            </span>
+          )
+        }
+      />
+
+      {body}
     </Panel>
   );
 }

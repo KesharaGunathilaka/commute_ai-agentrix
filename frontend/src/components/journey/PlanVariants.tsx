@@ -3,7 +3,8 @@
 import { AlertTriangle, Bus, Gauge, Scale, Shuffle, Train, Zap } from "lucide-react";
 
 import { ProvenanceBadge } from "@/components/journey/ProvenanceBadge";
-import { Panel, PanelHeader } from "@/components/ui/primitives";
+import { CollapsibleSection } from "@/components/ui/CollapsibleSection";
+import { Panel } from "@/components/ui/primitives";
 import type { PlanTotalFare, PlanVariant, ProvenanceSummary } from "@/lib/types";
 import { cn, formatDuration } from "@/lib/utils";
 
@@ -135,6 +136,13 @@ function VariantCard({ variant }: { variant: PlanVariant }) {
   );
 }
 
+/** Header warning copy, phrased for one plan, some of them, or all of them. */
+function missedLabel(missed: number, total: number): string {
+  if (total === 1) return "misses your deadline";
+  if (missed === total) return "all miss your deadline";
+  return `${missed} of ${total} miss your deadline`;
+}
+
 /**
  * Fastest, cheapest and balanced, side by side.
  *
@@ -145,6 +153,10 @@ function VariantCard({ variant }: { variant: PlanVariant }) {
  *
  * Every figure here was computed by the ranker and the fare model. None of it
  * passed through a language model on the way to the screen.
+ *
+ * Folded away by default. This is the comparison behind the recommendation,
+ * not the recommendation itself — the commuter who only wants the answer has
+ * already read it in the route card above.
  */
 export function PlanVariants({
   variants,
@@ -155,21 +167,33 @@ export function PlanVariants({
 }) {
   if (!variants || variants.length === 0) return null;
 
+  // A plan that lands after the deadline is not a detail worth hiding behind a
+  // click, so it is flagged on the header the commuter sees while collapsed.
+  const missed = variants.filter((variant) => variant.missed_deadline).length;
+
   return (
-    <Panel className={cn("p-4", className)}>
-      <PanelHeader
-        icon={<Scale className="size-3.5" />}
-        title={variants.length === 1 ? "One plan leads on every measure" : "Compare plans"}
-        meta={
-          <span className="text-[11px] text-ink-500">
+    <CollapsibleSection
+      icon={<Scale className="size-3.5" />}
+      title={variants.length === 1 ? "One plan leads on every measure" : "Compare plans"}
+      meta={
+        <>
+          {missed > 0 && (
+            <span className="flex items-center gap-1 font-semibold text-alert-400">
+              <AlertTriangle className="size-3 shrink-0" />
+              {missedLabel(missed, variants.length)}
+            </span>
+          )}
+          <span>
             {variants.length} distinct option{variants.length === 1 ? "" : "s"}
           </span>
-        }
-      />
-
+        </>
+      }
+      className={className}
+      bodyClassName="border-t border-console-700/50 px-4 pt-3 pb-4"
+    >
       <div
         className={cn(
-          "mt-3 grid gap-2.5",
+          "grid gap-2.5",
           variants.length >= 3 ? "sm:grid-cols-3" : variants.length === 2 ? "sm:grid-cols-2" : "",
         )}
       >
@@ -177,6 +201,6 @@ export function PlanVariants({
           <VariantCard key={variant.variant_id} variant={variant} />
         ))}
       </div>
-    </Panel>
+    </CollapsibleSection>
   );
 }
