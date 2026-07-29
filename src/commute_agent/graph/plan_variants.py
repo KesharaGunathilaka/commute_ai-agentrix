@@ -33,6 +33,7 @@ from commute_agent.domain.provenance import summarise_provenance
 from commute_agent.graph.nodes.ranker import (
     OPTIMISE_CHEAPEST,
     OPTIMISE_FASTEST,
+    _leg_count,
     _parse_time,
     _score,
 )
@@ -57,6 +58,28 @@ _STRATEGY_BLURBS = {
     "fastest": "Earliest arrival.",
     "cheapest": "Lowest estimated fare.",
     "balanced": "Fewest changes, then earliest arrival.",
+}
+
+# Cards to aim for. Fewer is fine when fewer distinct viable routes exist; the
+# list is never padded with a duplicate.
+_TARGET_VARIANTS = 3
+
+# Labels for a filler — a route that won none of the three strategies but is
+# worth a card because a strategy slot would otherwise sit empty. Every one of
+# these states something demonstrably true about the route, checked before it
+# is applied. A filler is NEVER labelled Fastest, Cheapest or Balanced: it did
+# not win those, and a card claiming an advantage it does not have is worse
+# than an empty slot.
+_FILLER_BY_TRAIN = "By train"
+_FILLER_BY_BUS = "By bus"
+_FILLER_FEWEST_CHANGES = "Fewest changes"
+_FILLER_ALTERNATIVE = "Alternative route"
+
+_FILLER_BLURBS = {
+    _FILLER_BY_TRAIN: "The rail option on this corridor.",
+    _FILLER_BY_BUS: "The bus option on this corridor.",
+    _FILLER_FEWEST_CHANGES: "Fewest transfers of any option.",
+    _FILLER_ALTERNATIVE: "A different route worth comparing.",
 }
 
 
@@ -179,8 +202,13 @@ def _scoring_view(route: dict, total_fare: dict) -> dict:
                                        "amount": total_fare.get("amount")}}
 
 
-def _pick(views: list[dict], strategy: Optional[str], constraints: PlanConstraints) -> int:
-    """Index of the best route under one strategy.
+def _pick_from(
+    views: list[dict],
+    indices: list[int],
+    strategy: Optional[str],
+    constraints: PlanConstraints,
+) -> int:
+    """Index of the best route under one strategy, among `indices`.
 
     Ties break on input order, so the function is deterministic for a given
     candidate list rather than dependent on dict ordering or sort stability.
@@ -188,9 +216,87 @@ def _pick(views: list[dict], strategy: Optional[str], constraints: PlanConstrain
     requested_dt = _parse_time(constraints.requested_time)
     deadline_dt = _parse_time(constraints.expected_arrival_time)
     return min(
-        range(len(views)),
+        indices,
         key=lambda i: (_score(views[i], requested_dt, deadline_dt, strategy), i),
     )
+
+
+def _pick(views: list[dict], strategy: Optional[str], constraints: PlanConstraints) -> int:
+    """Index of the best route under one strategy, across the whole set."""
+    return _pick_from(views, list(range(len(views))), strategy, constraints)
+
+
+def _is_feasible(view: dict, constraints: PlanConstraints) -> bool:
+    """True when a route breaks neither hard constraint.
+
+    Read straight off `_score`'s leading pair, so feasibility here means
+    exactly what it means to the ranker — no second definition to drift.
+    """
+    requested_dt = _parse_time(constraints.requested_time)
+    deadline_dt = _parse_time(constraints.expected_arrival_time)
+    return _score(view, requested_dt, deadline_dt, None)[:2] == (0, 0)
+
+
+def _filler_label(
+    candidate: dict,
+    routes: list[dict],
+    chosen_modes: set[str],
+) -> str:
+    """Name a filler by an advantage it demonstrably has.
+
+    Checked in order of how much the label tells a commuter, and every branch
+    is verified against the candidate set before it is used. The last branch is
+    unconditionally true, so there is always an honest label available and the
+    function never has to reach for a strategy name it did not earn.
+    """
+    mode = candidate.get("transit_mode")
+    if mode and mode not in chosen_modes:
+        return _FILLER_BY_TRAIN if mode == "train" else _FILLER_BY_BUS
+
+    legs = _leg_count(candidate)
+    if legs < min((_leg_count(r) for r in routes if r is not candidate), default=legs + 1):
+        return _FILLER_FEWEST_CHANGES
+
+    return _FILLER_ALTERNATIVE
+
+
+def _choose_filler(
+    routes: list[dict],
+    views: list[dict],
+    taken: set[int],
+    chosen_modes: set[str],
+    constraints: PlanConstraints,
+    allow_infeasible: bool,
+) -> Optional[int]:
+    """Index of the best distinct route to occupy a free card slot.
+
+    Two preferences, in order:
+
+    1. A mode not already on screen. Three cards that are all trains tell a
+       commuter nothing about whether a bus exists, and the bus may be the
+       answer when the train is full or cancelled.
+    2. Otherwise the best remaining route under balanced scoring.
+
+    Feasibility is never traded away. `allow_infeasible` is true only when the
+    strategy winners themselves all miss a hard constraint — if the commuter's
+    deadline is unreachable, showing the alternatives is still useful and every
+    card carries `missed_deadline`. When a feasible plan IS on screen, a filler
+    that breaks a hard constraint is not offered at all: an empty slot beats a
+    card that cannot be used.
+    """
+    remaining = [i for i in range(len(routes)) if i not in taken]
+    if not remaining:
+        return None
+
+    feasible = [i for i in remaining if _is_feasible(views[i], constraints)]
+    pool = feasible if feasible else (remaining if allow_infeasible else [])
+    if not pool:
+        return None
+
+    diverse = [i for i in pool if routes[i].get("transit_mode") not in chosen_modes]
+    pool = diverse or pool
+
+    return _pick_from(views, pool, None, constraints)
 
 
 def _build_variant(
@@ -198,6 +304,9 @@ def _build_variant(
     total_fare: dict,
     strategies: tuple[str, ...],
     constraints: PlanConstraints,
+    label: Optional[str] = None,
+    blurb: Optional[str] = None,
+    variant_id: Optional[str] = None,
 ) -> PlanVariant:
     departure = (route.get("departure_times") or [""])[0]
     arrival = (route.get("arrival_times") or [""])[-1]
@@ -214,11 +323,14 @@ def _build_variant(
     deadline_dt = _parse_time(constraints.expected_arrival_time)
     missed, early = _score(route, requested_dt, deadline_dt, None)[:2]
 
+    # A filler wins no strategy, so `strategies` is empty and the caller
+    # supplies all three of these. Guarded rather than assumed, so a future
+    # caller that forgets one gets a dull label instead of an IndexError.
     return PlanVariant(
-        variant_id=f"variant-{strategies[0]}",
-        label=_combined_label(strategies),
+        variant_id=variant_id or (f"variant-{strategies[0]}" if strategies else "variant-alt"),
+        label=label or (_combined_label(strategies) if strategies else _FILLER_ALTERNATIVE),
         strategies=strategies,
-        blurb=" ".join(_STRATEGY_BLURBS[s] for s in strategies),
+        blurb=blurb or " ".join(_STRATEGY_BLURBS[s] for s in strategies),
         route_id=route.get("route_id", ""),
         line=route.get("line", ""),
         transit_mode=route.get("transit_mode", ""),
@@ -264,10 +376,47 @@ def build_plan_variants(
     # Preserve strategy order (fastest first), not route order: the fastest
     # plan should lead the row of cards whichever candidate it landed on.
     ordered = sorted(picks.items(), key=lambda item: _strategy_rank(item[1][0]))
-    return [
+    variants = [
         _build_variant(routes[index], totals[index], tuple(names), constraints)
         for index, names in ordered
     ]
+
+    # Fill the slots the collapsed labels left behind.
+    #
+    # Two strategies landing on one route is correct and stays collapsed —
+    # "Fastest & cheapest" is a true statement and three identical cards would
+    # be worse. But the freed slot is not therefore worthless: there is usually
+    # another distinct route the commuter would want to see, and an empty
+    # third of the row reads as a bug.
+    #
+    # Fillers are added, never substituted. A card that genuinely won its
+    # strategy is never displaced to make room, because the label it carries is
+    # true and the replacement's would be weaker. That also means this cannot
+    # regress a working three-card corridor.
+    taken = set(picks)
+    chosen_modes = {routes[i].get("transit_mode") for i in taken}
+    any_feasible = any(_is_feasible(views[i], constraints) for i in taken)
+
+    while len(variants) < _TARGET_VARIANTS:
+        index = _choose_filler(
+            routes, views, taken, chosen_modes, constraints,
+            allow_infeasible=not any_feasible,
+        )
+        if index is None:
+            break  # Fewer than three distinct viable routes exist. Show fewer.
+        label = _filler_label(routes[index], routes, chosen_modes)
+        variants.append(
+            _build_variant(
+                routes[index], totals[index], (), constraints,
+                label=label,
+                blurb=_FILLER_BLURBS[label],
+                variant_id=f"variant-alt{len(variants)}",
+            )
+        )
+        taken.add(index)
+        chosen_modes.add(routes[index].get("transit_mode"))
+
+    return variants
 
 
 def _strategy_rank(name: str) -> int:

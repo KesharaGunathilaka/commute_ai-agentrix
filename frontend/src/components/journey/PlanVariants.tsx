@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertTriangle, Bus, Gauge, Scale, Train, Zap } from "lucide-react";
+import { AlertTriangle, Bus, Gauge, Scale, Shuffle, Train, Zap } from "lucide-react";
 
 import { ProvenanceBadge } from "@/components/journey/ProvenanceBadge";
 import { Panel, PanelHeader } from "@/components/ui/primitives";
@@ -12,6 +12,17 @@ const STRATEGY_ICONS = {
   cheapest: Scale,
   balanced: Gauge,
 } as const;
+
+/**
+ * A filler card — one that occupies a slot freed when two strategies collapsed
+ * onto the same route — wins no strategy, so `strategies` is empty. It gets a
+ * neutral glyph rather than borrowing one that implies an advantage it does
+ * not claim.
+ */
+function variantIcon(variant: PlanVariant) {
+  const key = variant.strategies?.[0] as keyof typeof STRATEGY_ICONS | undefined;
+  return (key && STRATEGY_ICONS[key]) || Shuffle;
+}
 
 const PROVENANCE_COPY: Record<ProvenanceSummary, string> = {
   verified: "Every leg from a checked source.",
@@ -65,7 +76,7 @@ function TotalFare({ fare }: { fare: PlanTotalFare }) {
 }
 
 function VariantCard({ variant }: { variant: PlanVariant }) {
-  const Icon = STRATEGY_ICONS[variant.strategies[0] as keyof typeof STRATEGY_ICONS] ?? Gauge;
+  const Icon = variantIcon(variant);
   const ModeIcon = variant.transit_mode === "train" ? Train : Bus;
 
   return (
