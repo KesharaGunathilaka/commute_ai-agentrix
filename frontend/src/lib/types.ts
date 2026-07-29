@@ -136,6 +136,53 @@ export interface Route extends Provenance {
   _provenance_override?: ProvenanceOverride | null;
 }
 
+/**
+ * A plan's fare, summed over its legs.
+ *
+ * `amount` is null — never 0 — when nothing could be priced, and `complete`
+ * is false whenever a leg fare was missing. Render an incomplete total as a
+ * floor ("at least LKR X"), never as the price: a missing leg is unknown, not
+ * free.
+ *
+ * `uncertainty_pct` is the widest leg's margin, not an average.
+ */
+export interface PlanTotalFare {
+  currency: string;
+  amount?: number | null;
+  max_amount?: number | null;
+  uncertainty_pct: number;
+  complete: boolean;
+  priced_legs: number;
+  total_legs: number;
+  estimated: boolean;
+  verified: boolean;
+  source?: string | null;
+  captured_date?: string | null;
+}
+
+export type ProvenanceSummary = "verified" | "partially_verified" | "estimated";
+
+/** One named plan — fastest, cheapest or balanced. */
+export interface PlanVariant {
+  variant_id: string;
+  /** Names every strategy this route won, e.g. "Fastest & cheapest". */
+  label: string;
+  strategies: string[];
+  blurb: string;
+  route_id: string;
+  line: string;
+  transit_mode: TransitMode | "";
+  departure_time: string;
+  arrival_time: string;
+  /** Null when an endpoint wouldn't parse — never a guessed duration. */
+  total_duration_min?: number | null;
+  total_fare: PlanTotalFare;
+  legs: RouteLeg[];
+  provenance_summary: ProvenanceSummary;
+  missed_deadline: boolean;
+  departs_before_requested: boolean;
+}
+
 export interface DisruptionRecord {
   disruption_id: string;
   train_id: string;
@@ -174,6 +221,8 @@ export interface AgentState {
   candidate_routes: Route[];
   ranked_routes: Route[];
   alternative_route?: Route | null;
+  /** Fastest / cheapest / balanced. Additive — `ranked_routes` is unchanged. */
+  plan_variants?: PlanVariant[];
 
   disruption_status?: DisruptionStatus | null;
   original_disruption?: DisruptionStatus | null;

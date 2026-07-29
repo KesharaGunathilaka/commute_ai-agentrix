@@ -68,6 +68,15 @@ def responder_node(state: AgentState) -> AgentState:
     native = response["final_response_native"]
     english = response["final_response_en"]
 
+    # Append the computed plan variants. Deterministic text, appended after
+    # the model's prose rather than fed into it — the model describes the
+    # recommended route, these numbers are copied from the ranker and the
+    # fare model, and neither can contaminate the other.
+    variants_text = _format_plan_variants(state.get("plan_variants") or [])
+    if variants_text:
+        native += f"\n\n{variants_text}"
+        english += f"\n\n{variants_text}"
+
     # Append Uber options to the response if present
     uber_options = state.get("uber_options") or []
     uber_last_mile = state.get("uber_last_mile") or []
@@ -119,6 +128,91 @@ def responder_node(state: AgentState) -> AgentState:
         result["candidate_route"] = state["alternative_route"]
 
     return result
+
+
+def _format_duration(minutes: int | None) -> str:
+    """"2h 33m" / "45m" / "—". Never guesses when the endpoints wouldn't parse."""
+    if minutes is None:
+        return "—"
+    hours, mins = divmod(minutes, 60)
+    if hours and mins:
+        return f"{hours}h {mins}m"
+    return f"{hours}h" if hours else f"{mins}m"
+
+
+def _format_plan_total(fare: dict) -> str:
+    """A plan total, hedged exactly as far as it deserves.
+
+    An incomplete total is reported as a floor with the leg count, never as a
+    price — a missing leg fare is unknown, not free, and the difference is the
+    whole reason this string is built in Python rather than phrased by a model.
+    """
+    amount = fare.get("amount")
+    if amount is None:
+        return "fare unavailable"
+
+    currency = fare.get("currency", "LKR")
+    maximum = fare.get("max_amount")
+    headline = (
+        f"{currency} {amount}–{maximum}"
+        if isinstance(maximum, int) and maximum > amount
+        else f"{currency} {amount}"
+    )
+
+    margin = fare.get("uncertainty_pct") or 0
+    if margin:
+        headline += f" ±{round(margin * 100)}%"
+
+    if not fare.get("complete", False):
+        priced, total = fare.get("priced_legs", 0), fare.get("total_legs", 0)
+        headline = f"at least {headline} ({priced} of {total} legs priced)"
+
+    return headline
+
+
+_PROVENANCE_WORDS = {
+    "verified": "verified sources",
+    "partially_verified": "partly verified sources",
+    "estimated": "unverified sources",
+}
+
+
+def _format_plan_variants(variants: list[dict]) -> str:
+    """
+    Summarise the computed plans as markdown.
+
+    Built in Python rather than asked of the LLM, and that is the point: every
+    figure here is copied out of a variant the ranker and the fare model
+    produced. Handing these numbers to a model to phrase would put a generated
+    token between the arithmetic and the commuter, which is precisely the class
+    of bug R1 was.
+    """
+    if not variants:
+        return ""
+
+    heading = (
+        "**One option leads on every measure:**"
+        if len(variants) == 1
+        else f"**{len(variants)} ways to make this journey:**"
+    )
+    lines = [heading]
+
+    for variant in variants:
+        total = _format_plan_total(variant.get("total_fare") or {})
+        provenance = _PROVENANCE_WORDS.get(
+            variant.get("provenance_summary", "estimated"), "unverified sources"
+        )
+        detail = (
+            f"departs {variant.get('departure_time') or '—'}, "
+            f"arrives {variant.get('arrival_time') or '—'} "
+            f"({_format_duration(variant.get('total_duration_min'))}) · "
+            f"{total} · {provenance}"
+        )
+        if variant.get("missed_deadline"):
+            detail += " · **arrives after your deadline**"
+        lines.append(f"- **{variant.get('label', 'Option')}** — {detail}")
+
+    return "\n".join(lines)
 
 
 def _format_uber_suggestion(quotes: list[dict], origin: str, destination: str) -> str:

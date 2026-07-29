@@ -47,6 +47,13 @@ class AgentState(TypedDict, total=False):
     ranked_routes: list[dict]
     """Top-5 routes after ranking by departure time, deadline fit, and mode preference."""
 
+    plan_variants: list[dict]
+    """Up to three named plans — fastest, cheapest, balanced — each one
+    independently costed, from graph/plan_variants.py. Additive alongside
+    `ranked_routes`, which stays exactly as it was: the responder, monitor,
+    replanner and existing frontend all read that list, and none of them was
+    changed to read this one. Empty when there are no candidate routes."""
+
     uber_options: Optional[list[dict]]
     """Ride-hailing quotes from RideService — populated when no transit fits or for last-mile."""
 

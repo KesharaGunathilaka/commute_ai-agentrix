@@ -14,6 +14,8 @@ Graph topology:
      |
   ranker
      |
+  plan_variants
+     |
   uber
      |
   monitor
@@ -54,6 +56,7 @@ from commute_agent.graph.nodes.replanner import replanner_node
 from commute_agent.graph.nodes.responder import responder_node
 from commute_agent.graph.nodes.train_rag import train_rag_node
 from commute_agent.graph.nodes.uber import uber_node
+from commute_agent.graph.nodes.variants import plan_variants_node
 from commute_agent.graph.state import AgentState
 
 logger = get_logger(__name__)
@@ -101,6 +104,7 @@ def build_graph() -> StateGraph:
     graph.add_node("train_rag", train_rag_node)
     graph.add_node("fares", fare_node)
     graph.add_node("ranker", ranker_node)
+    graph.add_node("plan_variants", plan_variants_node)
     graph.add_node("uber", uber_node)
     graph.add_node("monitor", monitor_node)
     graph.add_node("replanner", replanner_node)
@@ -121,7 +125,11 @@ def build_graph() -> StateGraph:
     graph.add_edge("bus_rag", "train_rag")
     graph.add_edge("train_rag", "fares")
     graph.add_edge("fares", "ranker")
-    graph.add_edge("ranker", "uber")
+    # Variants are built after ranking so every route is already priced, and
+    # before the ride/monitor stages so nothing downstream can see a state
+    # where the plans and the ranked list disagree about which routes exist.
+    graph.add_edge("ranker", "plan_variants")
+    graph.add_edge("plan_variants", "uber")
     graph.add_edge("uber", "monitor")
 
     # Monitor -> conditional (clear or disrupted)
@@ -177,6 +185,7 @@ def _blank_state() -> AgentState:
         "candidate_routes": [],
         "candidate_route": None,
         "ranked_routes": [],
+        "plan_variants": [],
         "uber_options": None,
         "uber_last_mile": None,
         "uber_last_mile_distance_m": None,

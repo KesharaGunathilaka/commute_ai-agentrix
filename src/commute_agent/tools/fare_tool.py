@@ -26,6 +26,7 @@ from typing import Any, Optional
 from commute_agent.core.config import get_settings
 from commute_agent.core.logging import get_logger
 from commute_agent.domain.enums import TransitMode
+from commute_agent.domain.provenance import SOURCE_FARE_MODEL
 
 logger = get_logger(__name__)
 
@@ -166,3 +167,97 @@ def cheapest_fare(route: dict) -> Optional[int]:
         return None
     amount = fare.get("amount")
     return amount if isinstance(amount, int) else None
+
+
+def estimate_leg_fare(leg: dict) -> Optional[dict]:
+    """
+    Price a single leg on its own distance and its own fare scheme.
+
+    `estimate_fare` prices a whole route: it sums every leg's distance and
+    applies one scheme and one minimum fare to the total. That is the right
+    figure for a single-leg journey, and it is what the route card shows.
+
+    A plan total wants something different. Each vehicle boarded charges its
+    own minimum fare, and a journey that mixes a train leg with a bus leg is
+    priced under two different tariffs — so a plan total is the sum of its
+    legs' fares, not one fare over the summed distance. For a one-leg journey
+    the two agree exactly; for a multi-leg one the per-leg sum is higher, and
+    correct.
+
+    Implemented by handing a one-leg route to `estimate_fare` rather than by
+    reimplementing the arithmetic, so there is exactly one place where a fare
+    is computed and the two can never drift apart.
+
+    Returns None when the leg has no usable distance — never a zero.
+    """
+    is_train = leg.get("mode") == "train"
+    return estimate_fare({
+        "legs": [{"distance_m": leg.get("distance_m")}],
+        "transit_mode": TransitMode.TRAIN.value if is_train else TransitMode.BUS.value,
+    })
+
+
+def aggregate_leg_fares(leg_fares: list[Optional[dict]]) -> dict:
+    """
+    Combine per-leg fares into a plan total.
+
+    Three rules, all of them about not overstating what is known:
+
+    * A `None` leg fare is missing, not free. It is excluded from the sum and
+      the total is marked `complete=False` with a count of what was priced, so
+      the UI can say "at least LKR X, one leg unpriced" instead of quoting a
+      total that silently treats a leg as costing nothing.
+    * Uncertainty is the **widest** leg's, never an average. A total mixing a
+      checked fare with an unchecked one is only as good as the unchecked one;
+      averaging would manufacture confidence the total has not earned.
+    * The total is verified only if every priced leg is verified *and* nothing
+      is missing — an unpriced leg is not a verified leg.
+
+    `amount` is None, never 0, when nothing could be priced at all.
+    """
+    priced = [f for f in leg_fares if f]
+
+    if not priced:
+        return {
+            "currency": "LKR",
+            "amount": None,
+            "max_amount": None,
+            "uncertainty_pct": 0.0,
+            "complete": False,
+            "priced_legs": 0,
+            "total_legs": len(leg_fares),
+            "estimated": True,
+            "verified": False,
+            "source": SOURCE_FARE_MODEL,
+            "captured_date": None,
+        }
+
+    complete = len(priced) == len(leg_fares)
+    return {
+        "currency": priced[0].get("currency", "LKR"),
+        "amount": sum(f["amount"] for f in priced),
+        "max_amount": sum(f.get("max_amount", f["amount"]) for f in priced),
+        "uncertainty_pct": max(f.get("uncertainty_pct", 0.0) for f in priced),
+        "complete": complete,
+        "priced_legs": len(priced),
+        "total_legs": len(leg_fares),
+        "estimated": True,
+        "verified": complete and all(f.get("verified") for f in priced),
+        "source": SOURCE_FARE_MODEL,
+        "captured_date": priced[0].get("captured_date"),
+    }
+
+
+def plan_total_fare(route: dict) -> dict:
+    """Total fare for one route, summed over its legs.
+
+    Falls back to the route-level estimate when a route carries no structured
+    legs (nothing outside Google Maps populates them), so a plan total is
+    always reported — as incomplete, if that is the truth.
+    """
+    legs = route.get("legs") or []
+    if legs:
+        return aggregate_leg_fares([estimate_leg_fare(leg) for leg in legs])
+
+    route_fare = route.get("fare_estimate") or estimate_fare(route)
+    return aggregate_leg_fares([route_fare])

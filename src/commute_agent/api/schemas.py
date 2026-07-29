@@ -27,6 +27,62 @@ class Provenance(BaseModel):
     captured_date: Optional[str] = None
 
 
+class PlanTotalFare(BaseModel):
+    """A plan's fare, summed over its legs.
+
+    `amount` is None — never 0 — when nothing could be priced, and `complete`
+    is false whenever any leg's fare was missing. A client must render an
+    incomplete total as a floor ("at least LKR X"), not as the price.
+
+    `uncertainty_pct` is the widest leg's margin, not an average: a total is
+    only as certain as its least certain component.
+    """
+
+    currency: str = "LKR"
+    amount: Optional[int] = None
+    max_amount: Optional[int] = None
+    uncertainty_pct: float = 0.0
+    complete: bool = False
+    priced_legs: int = 0
+    total_legs: int = 0
+    estimated: bool = True
+    verified: bool = False
+    source: Optional[str] = None
+    captured_date: Optional[str] = None
+
+
+class PlanVariant(BaseModel):
+    """One named plan — see graph/plan_variants.py.
+
+    Every field defaults, so a variant the backend stops emitting degrades to
+    a sparse card rather than a validation error on the whole turn.
+    """
+
+    variant_id: str = ""
+    label: str = ""
+    """Names every strategy this route won — "Fastest & cheapest" when two
+    strategies picked it. Identical picks collapse to one card."""
+
+    strategies: list[str] = Field(default_factory=list)
+    blurb: str = ""
+
+    route_id: str = ""
+    line: str = ""
+    transit_mode: str = ""
+    departure_time: str = ""
+    arrival_time: str = ""
+    total_duration_min: Optional[int] = None
+
+    total_fare: PlanTotalFare = Field(default_factory=PlanTotalFare)
+    legs: list[dict[str, Any]] = Field(default_factory=list)
+
+    provenance_summary: str = "estimated"
+    """verified | partially_verified | estimated, across every leg."""
+
+    missed_deadline: bool = False
+    departs_before_requested: bool = False
+
+
 class AgentResponse(BaseModel):
     """The full agent state, flattened for the wire.
 
@@ -53,6 +109,11 @@ class AgentResponse(BaseModel):
     candidate_routes: list[dict[str, Any]] = Field(default_factory=list)
     ranked_routes: list[dict[str, Any]] = Field(default_factory=list)
     alternative_route: Optional[dict[str, Any]] = None
+
+    plan_variants: list[PlanVariant] = Field(default_factory=list)
+    """Fastest / cheapest / balanced, each independently costed. Additive:
+    `candidate_routes` and `ranked_routes` above are unchanged, so a client
+    that ignores this field behaves exactly as before."""
 
     # Disruption
     disruption_status: Optional[dict[str, Any]] = None

@@ -4,6 +4,7 @@ import { Info, RotateCcw } from "lucide-react";
 import { useState } from "react";
 
 import { DisruptionBanner } from "@/components/journey/DisruptionBanner";
+import { PlanVariants } from "@/components/journey/PlanVariants";
 import { RankedRoutes } from "@/components/journey/RankedRoutes";
 import { LastMileOptions, RideOptions } from "@/components/journey/RideOptions";
 import { RouteMap, RouteMapFallback } from "@/components/journey/RouteMap";
@@ -106,6 +107,11 @@ export function JourneyPlan({
       ) : (
         <RouteMapFallback route={showComparison ? alternative : displayed} />
       )}
+
+      {/* Fastest / cheapest / balanced. Sits above the ranked list because it
+          answers the comparison question directly; the list below is still
+          the full set the ranker scored, unchanged. */}
+      <PlanVariants variants={state.plan_variants} />
 
       <RankedRoutes
         routes={others}

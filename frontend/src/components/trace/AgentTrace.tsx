@@ -10,6 +10,8 @@ import {
   MessageSquareText,
   RadioTower,
   RefreshCw,
+  Scale,
+  Ticket,
   Train,
   type LucideIcon,
 } from "lucide-react";
@@ -26,8 +28,10 @@ import { cn } from "@/lib/utils";
 const NODES: Record<string, { label: string; blurb: string; icon: LucideIcon }> = {
   planner: { label: "Planner", blurb: "Parsing intent · finding routes", icon: Compass },
   bus_rag: { label: "Bus RAG", blurb: "Matching bus timetables", icon: Bus },
-  train_rag: { label: "Train RAG", blurb: "Scraping live train schedules", icon: Train },
+  train_rag: { label: "Train RAG", blurb: "Keeping live train times", icon: Train },
+  fares: { label: "Fares", blurb: "Estimating ticket prices", icon: Ticket },
   ranker: { label: "Ranker", blurb: "Scoring against your deadline", icon: ListOrdered },
+  plan_variants: { label: "Plan variants", blurb: "Costing fastest, cheapest, balanced", icon: Scale },
   uber: { label: "Ride-hailing", blurb: "Checking last-mile options", icon: CircleDot },
   monitor: { label: "Monitor", blurb: "Checking for disruptions", icon: RadioTower },
   replanner: { label: "Replanner", blurb: "Finding an alternative", icon: RefreshCw },
