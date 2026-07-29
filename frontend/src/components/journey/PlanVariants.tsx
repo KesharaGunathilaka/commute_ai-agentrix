@@ -102,17 +102,23 @@ function VariantCard({ variant }: { variant: PlanVariant }) {
 
       <TotalFare fare={variant.total_fare} />
 
+      {/* Attributed to where the *displayed times* came from, which is not
+          always the legs' source: local timetable data can replace a route's
+          headline departure and arrival while the per-leg times stay as Maps
+          recorded them. Captioning those minutes "Google Maps" would credit a
+          number to a source that didn't produce it. */}
       <div className="mt-2 flex flex-wrap items-center gap-1">
         <ProvenanceBadge
           provenance={{
-            source: variant.legs[0]?.source ?? null,
+            source: variant.times_source ?? variant.legs[0]?.source ?? null,
             verified: variant.provenance_summary === "verified",
           }}
-          prefix={`${variant.legs.length || 1} leg${variant.legs.length === 1 ? "" : "s"}`}
+          prefix="Times"
         />
       </div>
       <p className="mt-1 text-[10px] leading-relaxed text-ink-700">
         {PROVENANCE_COPY[variant.provenance_summary]}
+        {variant.times_overridden && " Times replaced Google Maps'."}
       </p>
     </Panel>
   );

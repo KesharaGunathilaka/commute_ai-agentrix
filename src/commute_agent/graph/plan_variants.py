@@ -95,6 +95,19 @@ class PlanVariant:
     provenance_summary: str = "estimated"
     """verified | partially_verified | estimated, across every leg."""
 
+    times_source: Optional[str] = None
+    """Where `departure_time` and `arrival_time` above actually came from.
+
+    Distinct from the legs' own sources, and it has to be: `bus_rag` replaces a
+    route's headline times with curated timetable values while leaving the leg
+    times as Maps recorded them. Reading provenance off the legs alone would
+    caption a local-timetable arrival as "Google Maps" — attributing a number
+    to a source that did not produce it, which is the mislabelling this whole
+    field set exists to prevent."""
+
+    times_overridden: bool = False
+    """True when local data replaced this route's Maps-sourced times."""
+
     missed_deadline: bool = False
     departs_before_requested: bool = False
 
@@ -113,6 +126,8 @@ class PlanVariant:
             "total_fare": self.total_fare,
             "legs": self.legs,
             "provenance_summary": self.provenance_summary,
+            "times_source": self.times_source,
+            "times_overridden": self.times_overridden,
             "missed_deadline": self.missed_deadline,
             "departs_before_requested": self.departs_before_requested,
         }
@@ -189,9 +204,11 @@ def _build_variant(
     legs = route.get("legs") or []
 
     # Provenance is judged per leg where legs exist, because a journey can mix
-    # a Maps-sourced leg with one the local timetable replaced. With no legs,
-    # the route's own stamp is all there is.
-    provenance_items = legs if legs else [route]
+    # a Maps-sourced leg with one the local timetable replaced. The route's own
+    # stamp is included too — the headline times shown on the card are the
+    # route's, and a route whose times were overridden must not inherit a
+    # verification claim from legs that were left alone.
+    provenance_items = [*legs, route] if legs else [route]
 
     requested_dt = _parse_time(constraints.requested_time)
     deadline_dt = _parse_time(constraints.expected_arrival_time)
@@ -211,6 +228,8 @@ def _build_variant(
         total_fare=total_fare,
         legs=legs,
         provenance_summary=summarise_provenance(provenance_items),
+        times_source=route.get("source"),
+        times_overridden=bool(route.get("_provenance_override")),
         missed_deadline=bool(missed),
         departs_before_requested=bool(early),
     )

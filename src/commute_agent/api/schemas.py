@@ -79,6 +79,13 @@ class PlanVariant(BaseModel):
     provenance_summary: str = "estimated"
     """verified | partially_verified | estimated, across every leg."""
 
+    times_source: Optional[str] = None
+    """Where the displayed departure and arrival came from — not necessarily
+    the legs' source, since local data can replace a route's headline times
+    while leaving the per-leg times as Maps recorded them."""
+
+    times_overridden: bool = False
+
     missed_deadline: bool = False
     departs_before_requested: bool = False
 

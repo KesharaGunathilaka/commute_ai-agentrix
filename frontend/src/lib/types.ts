@@ -179,6 +179,13 @@ export interface PlanVariant {
   total_fare: PlanTotalFare;
   legs: RouteLeg[];
   provenance_summary: ProvenanceSummary;
+  /**
+   * Where the displayed departure and arrival came from — not necessarily the
+   * legs' source. `bus_rag` replaces a route's headline times with curated
+   * timetable values while leaving the per-leg times as Maps recorded them.
+   */
+  times_source?: string | null;
+  times_overridden?: boolean;
   missed_deadline: boolean;
   departs_before_requested: boolean;
 }
